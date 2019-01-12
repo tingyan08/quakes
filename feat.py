@@ -27,7 +27,7 @@ def addsuffix(filename, suffix):
         return m.group(1) + suffix
     return filename + suffix
 
-def get_homography(images, context = {}, distance_threshold = 20):
+def get_homography(images, context = None, distance_threshold = 20):
     r'''Compute a global homography between two images
 
     This is somewhat hacky, and needs more error detection and diagnostics. I
@@ -39,6 +39,7 @@ def get_homography(images, context = {}, distance_threshold = 20):
     # create computational objects, if necessary. ORB with WTA_K > 2 REQUIRES
     # cv2.NORM_HAMMING2. The default is WTA_K==2, which uses cv2.NORM_HAMMING
     # instead. WTA_K==4 works a bit better maybe
+    if context is None: context = {}
     if 'detector' not in context:
         context['detector'] = cv2.ORB_create(WTA_K=4)
     if 'matcher' not in context:

@@ -19,8 +19,11 @@ sys.path[:0] = '/home/dima/src_boats/mrcal2/',
 import mrcal
 
 
-range_nominal = 16000 # more than altitude, because this is a skewed view
+range_nominal = 12000 # more than altitude, because this is a skewed view
 focal_length  = 4000
+
+i_image_range = (8,71)
+
 
 def get_image_paths(filename_hugin, imagedir):
     images = []
@@ -30,6 +33,11 @@ def get_image_paths(filename_hugin, imagedir):
             m  = re.match(f"i .*\"(.*?)\"$", l)
             if m is not None:
                 images.append(imagedir + '/' + m.group(1))
+
+
+    if i_image_range is not None: return images[i_image_range[0]:i_image_range[1]]
+
+
     return images
 
 
@@ -44,8 +52,6 @@ def parse_hugin_features(filename_hugin):
         for l in f:
             m  = re.match(f"c n{re_pos_int} N{re_pos_int} x{re_float} y{re_float} X{re_float} Y{re_float} t0", l)
             if m is not None:
-                key0 = '_'.join((m.group(1), m.group(3), m.group(4)))
-                key1 = '_'.join((m.group(2), m.group(5), m.group(6)))
 
                 iframe0 = int(  m.group(1))
                 x0      = float(m.group(3))
@@ -53,6 +59,18 @@ def parse_hugin_features(filename_hugin):
                 iframe1 = int(  m.group(2))
                 x1      = float(m.group(5))
                 y1      = float(m.group(6))
+
+                if i_image_range is not None:
+                    if iframe0 <  i_image_range[0] or \
+                       iframe1 <  i_image_range[0] or \
+                       iframe0 >= i_image_range[1] or \
+                       iframe1 >= i_image_range[1]:
+                        continue
+                    iframe0 -= i_image_range[0]
+                    iframe1 -= i_image_range[0]
+
+                key0 = '_'.join((str(iframe0), m.group(3), m.group(4)))
+                key1 = '_'.join((str(iframe1), m.group(5), m.group(6)))
 
                 pointset0 = pointset_map.get(key0)
                 pointset1 = pointset_map.get(key1)
@@ -161,20 +179,30 @@ def parse_known_position_points(gcp_vnl,
     points_fixed              = np.zeros((0,3), dtype=float)
     observations_fixed        = np.zeros((0,2), dtype=float)
     indices_point_frame_fixed = np.zeros((0,2), dtype=np.int32)
+    point_labels              = []
 
     ipoint = 0
     for d in vnlog.vnlog(gcp_vnl):
+
+
+        i0 = int (d['img0'])
+        if i_image_range is not None:
+            if i0 < i_image_range[0] or i0 >= i_image_range[1]:
+                continue
+            i0 -= i_image_range[0]
+
         # I grab the known gcp coordinates
+        name = d['name']
         E    = float(d['E'])
         N    = float(d['N'])
         altm = float(d['altm'])
         points_fixed = nps.glue(points_fixed,
                                 np.array((N,E,-altm), dtype=float),
                                 axis=-2)
+        point_labels += [name]
 
         # I use the feature-matcher to find the point observations of the ground
         # control points
-        i0 = int  (d['img0'])
         x0 = float(d['x0'  ])
         y0 = float(d['y0'  ])
         q0 = np.array((x0,y0), dtype=float)
@@ -229,12 +257,11 @@ def parse_known_position_points(gcp_vnl,
             found_any_matches_for_this_gcp = True
 
         if not found_any_matches_for_this_gcp:
-            name = d['name']
             raise Exception(f"No matches for GCP '{name}' found!")
 
         ipoint += 1
 
-    return indices_point_frame_fixed, observations_fixed, points_fixed
+    return indices_point_frame_fixed, observations_fixed, points_fixed, point_labels
 
 
 def get_imagersize(image):
@@ -375,11 +402,12 @@ if not( np.min(indices_point_frame[:,1]) == 0 and
     raise Exception(f"Expected hugin images from 0 to {len(images)-1}, but got from {np.min(indices_point_frame[:,1])} to {np.max(indices_point_frame[:,1])}")
 
 
-indices_point_frame_fixed, observations_fixed, points_fixed = \
+indices_point_frame_fixed, observations_fixed, points_fixed, point_labels = \
     parse_known_position_points("gcp.vnl",
                                 images,
                                 imagersize[0], imagersize[1],
                                 indices_point_frame, observations)
+print(f"Got {len(points_fixed)} fixed points")
 
 extrinsics_rt_fromref = get_extrinsics_fromref_seed(images,
                                                     240., # looking SW
@@ -388,23 +416,24 @@ extrinsics_rt_fromref = get_extrinsics_fromref_seed(images,
 points = get_points_seed( (lensmodel,intrinsics_data), Npoints,
                           extrinsics_rt_fromref, range_nominal,
                           indices_point_frame, observations )
-points = nps.glue(points, points_fixed, axis=-2)
 
 # join the floating and fixed point data. The fixed points lie at the end of the
 # list, after the floating points
+points = nps.glue(points, points_fixed, axis=-2)
 indices_point_frame_fixed[:,0] += Npoints
 indices_point_frame = nps.glue(indices_point_frame,
                                indices_point_frame_fixed,
                                axis=-2)
+observations = nps.glue(observations,
+                        observations_fixed,
+                        axis=-2)
+
 indices_point_camintrinsics_camextrinsics_flags = \
     nps.glue( indices_point_frame[:, (0,)],
               np.zeros( (len(indices_point_frame), 1), dtype=np.int32),
               indices_point_frame[:, (1,)],
               np.zeros( (len(indices_point_frame), 1), dtype=np.int32),
               axis = -1 )
-observations = nps.glue(observations,
-                        observations_fixed,
-                        axis=-2)
 
 # Add a unit weight column
 observations = nps.glue(observations,
@@ -444,51 +473,27 @@ else:
                             Npoints_fixed                     = len(points_fixed),
                             imagersizes                       = nps.atleast_dims(imagersize, -2),
                             observed_pixel_uncertainty        = 1.0,
-                            do_optimize_intrinsic_core        = False,
                             do_optimize_intrinsic_distortions = False,
 
-                            do_optimize_extrinsics            = False,
+                            do_optimize_intrinsic_core        = False,
+                            do_optimize_extrinsics            = True,
                             do_optimize_frames                = True,
 
                             skip_outlier_rejection            = True,
                             skip_regularization               = False,
                             verbose                           = True)
 
-    stats = mrcal.optimize( nps.atleast_dims(intrinsics_data, -2),
-                            extrinsics_rt_fromref,
-                            None, points,
-                            None, None,
-                            observations, indices_point_camintrinsics_camextrinsics_flags,
-                            lensmodel,
-                            Npoints_fixed                     = len(points_fixed),
-                            imagersizes                       = nps.atleast_dims(imagersize, -2),
-                            observed_pixel_uncertainty        = 1.0,
-                            do_optimize_intrinsic_core        = False,
-                            do_optimize_intrinsic_distortions = False,
 
-                            do_optimize_extrinsics            = True,
-                            do_optimize_frames                = False,
 
-                            skip_outlier_rejection            = True,
-                            skip_regularization               = False,
-                            verbose                           = True)
+print(stats['rms_reproj_error__pixels'])
 
-    stats = mrcal.optimize( nps.atleast_dims(intrinsics_data, -2),
-                            extrinsics_rt_fromref,
-                            None, points,
-                            None, None,
-                            observations, indices_point_camintrinsics_camextrinsics_flags,
-                            lensmodel,
-                            Npoints_fixed                     = len(points_fixed),
-                            imagersizes                       = nps.atleast_dims(imagersize, -2),
-                            observed_pixel_uncertainty        = 1.0,
-                            do_optimize_intrinsic_core        = False,
-
-                            do_optimize_intrinsic_distortions = True,
-                            do_optimize_extrinsics            = True,
-
-                            do_optimize_frames                = False,
-                            skip_outlier_rejection            = True,
-                            skip_regularization               = False,
-                            verbose                           = True)
-
+x = stats['x']
+point_labels_map = dict()
+for i_point_fixed in range(len(points_fixed)):
+    point_labels_map[i_point_fixed + len(points)-len(points_fixed)] = \
+        point_labels[i_point_fixed]
+mrcal.show_calibration_geometry( extrinsics_rt_fromref,
+                                 points=points,
+                                 axis_scale=1000,
+                                 point_labels = point_labels_map,
+                                 hardcopy='/tmp/tst.gp' )

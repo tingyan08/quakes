@@ -27,7 +27,7 @@ def addsuffix(filename, suffix):
         return m.group(1) + suffix
     return filename + suffix
 
-def get_homography(images, context = None, distance_threshold = 20):
+def get_homography(images, context = None, distance_threshold = 80):
     r'''Compute a global homography between two images
 
     This is somewhat hacky, and needs more error detection and diagnostics. I
@@ -56,6 +56,9 @@ def get_homography(images, context = None, distance_threshold = 20):
     p0 = np.array( [keypoints[0][m.queryIdx].pt for m in matches] )
     p1 = np.array( [keypoints[1][m.trainIdx].pt for m in matches] )
 
+    s = cv2.findHomography(p0,p1, method=cv2.RANSAC, ransacReprojThreshold=30)
+
+
     # print '# x1 y1 x2 y2 distance'
     # matches = sorted(matches, key=lambda m: m.distance)
     # for m in matches:
@@ -66,14 +69,13 @@ def get_homography(images, context = None, distance_threshold = 20):
     #         keypoints[1][m.trainIdx].pt[1], \
     #         m.distance
 
-    s = cv2.findHomography(p0,p1, method=cv2.RANSAC)
-
     # P = nps.matmult(nps.glue(p0, np.ones((len(p0),1)),axis=-1),nps.transpose(s[0]))
     # diff = P[:,:2]/P[:,(2,)] - p1
     # sys.stderr.write("diff: {}\n".format(diff))
     # sys.stderr.write("difflen: {}\n".format(np.sqrt(nps.inner(diff,diff))))
     # sys.stderr.write("homography err: {}\n".format(np.linalg.norm(diff)))
     # sys.stderr.write("homography: {}\n".format(s[0].ravel()))
+
     return s[0]
 
 def construct_featuretrack_homography(imagefilename0, imagefilename1):

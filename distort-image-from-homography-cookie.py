@@ -1,5 +1,14 @@
 #!/usr/bin/python2
 
+r'''Applies a homography cookie to visualize how correct it is
+
+Usually I do this:
+
+function imbase() { printf 'G%07d' $1; }
+i=20056; ~/src_boats/uavsar/distort-image-from-homography-cookie.py `imbase $i`.{JPG,homographycookie}; geeqie `imbase $i`.JPG `imbase $i`_homographymapped.JPG `imbase $(($i+1))`.JPG
+
+'''
+
 import numpy as np
 import numpysane as nps
 import cv2

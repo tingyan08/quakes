@@ -1163,10 +1163,16 @@ else:
     print(f"camera translation from seed mean: {repr(np.mean((rt_rc_orig-rt_rc)[:,3:], axis=-2))}")
     print(f"camera translation from seed mean len: {nps.mag(np.mean((rt_rc_orig-rt_rc)[:,3:], axis=-2))}")
 
+
     r_diff = mrcal.compose_rt(mrcal.invert_rt(rt_rc), rt_rc_orig)[:,:3]
     print(f"camera rotation from seed:\n{r_diff}\n{nps.mag(r_diff)*180./np.pi} degrees")
 
     camera_position_fit = mrcal.invert_rt(extrinsics_rt_fromref)[:,3:]
+
+    print(f"Mean camera altitude: {np.mean(-rt_rc[:,5])}")
+    err_geotag = np.mean(camera_position_fit - camera_position_orig, axis=-2)
+    print(f"Mean xyz error from geotag: {err_geotag[0]} {err_geotag[1]} {err_geotag[2]}")
+    print(f"Mean error from geotag: {nps.mag(err_geotag)}")
 
     range_penalties = x.reshape(len(x)//3,3)[:,2]
     i_points_penalized = range_penalties.nonzero()[0]

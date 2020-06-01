@@ -90,13 +90,16 @@ image_range  = [33,68]
 image_range  = [32,79]
 
 # used to get the optimal f
-image_range  = [32,75]
+#image_range  = [32,75]
 
 image_range  = [32,82]
 
 
+# # "right" value for focal_length == 3900
+# camera_position_bias = np.array([-3428.83582502,2772.04308145,289.3221032 ])
 
-camera_position_bias = np.array([-3428.83582502,2772.04308145,289.3221032 ])
+# "right" value for focal_length == 4660
+camera_position_bias = np.array([-4826.58205199,   523.30242557,  2626.34285526])
 
 
 

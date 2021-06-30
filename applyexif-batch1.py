@@ -299,7 +299,9 @@ def decompose_pose(Rt_world_cam):
 
     lat,lon = nps.mv(latlon_from_ne(ned[..., :2]),
                      -1,0)
-    alt     = ned[..., 2]
+
+    # altitude is measured UP, so I invert the DOWN value
+    alt     = -ned[..., 2]
 
 
     # I now reverse the R_world_cam__from_pix4d_rpy() function
@@ -349,7 +351,11 @@ def decompose_pose(Rt_world_cam):
 
     '''
 
-    # pitch ~ 0, so sp ~ 0, cp > 0
+    # I assume that pitch ~ 0, so sp ~ 0, cp > 0.
+    #
+    # This is by construction. pitch=0 means we're looking out horizontally. If
+    # we look straight down, then pitch ~ 90deg. If we look past 90deg, we'll
+    # keep pitch <= 90deg, but compensate by yawing by 180deg
     sp = -R_world_body[..., 2,0]
     cp = np.sqrt(1. - sp*sp)
 

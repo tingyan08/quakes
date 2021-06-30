@@ -2,6 +2,7 @@
 
 import sys
 import os
+import re
 import numpy as np
 import numpysane as nps
 import glob
@@ -370,6 +371,7 @@ def decompose_pose(Rt_world_cam):
 
 
 def applyexif(filename,
+              model_intrinsics,
               lat,lon,alt,
               # all in rad
               r,p,y):
@@ -400,15 +402,42 @@ def applyexif(filename,
         n = int(x*d)
         return fractions.Fraction(n,d)
 
-    # I offset the "pitch" by 90deg. From experience, this is the offset between
-    # Xmp.drone-parrot.CameraPitchDegree and Xmp.Camera.Pitch. I store the
-    # latter, while I computed the former. No idea why this is all like this
-    tags = { 'Xmp.Camera.Yaw':        str(y*180./np.pi),
-             'Xmp.Camera.Pitch':      str(p*180./np.pi + 90.),
-             'Xmp.Camera.Roll':       str(r*180./np.pi),
-             'Xmp.exif.GPSLatitude':  make_GPSCoordinate(lat, True),
-             'Xmp.exif.GPSLongitude': make_GPSCoordinate(lon, False),
-             'Xmp.exif.GPSAltitude':  make_Rational(alt) }
+
+    lensmodel,intrinsics = model_intrinsics.intrinsics()
+    if lensmodel != 'LENSMODEL_OPENCV5':
+        raise Exception("I only support opencv5 distortions")
+
+    fxy = intrinsics[0:2]
+    cxy = intrinsics[2:4]
+    r1,r2,t1,t2,r3 = intrinsics[4:]
+
+
+    # pixels/mm. This number is completely made up. Nothing cares about it. We
+    # just need to make sure that fxy and cxy come out correctly, in the units
+    # of pixels
+    pixel_pitch = 1000.
+
+    tags = { 'Xmp.Camera.Yaw':                    str(y*180./np.pi),
+             # I offset the "pitch" by 90deg. From experience, this is the offset between
+             # Xmp.drone-parrot.CameraPitchDegree and Xmp.Camera.Pitch. I store the
+             # latter, while I computed the former. No idea why this is all like this
+             'Xmp.Camera.Pitch':                  str(p*180./np.pi + 90.),
+             'Xmp.Camera.Roll':                   str(r*180./np.pi),
+             'Xmp.exif.GPSLatitude':              make_GPSCoordinate(lat, True),
+             'Xmp.exif.GPSLongitude':             make_GPSCoordinate(lon, False),
+             'Xmp.exif.GPSAltitude':              make_Rational(alt),
+             'Xmp.Camera.ModelType':              'perspective',
+             'Xmp.Camera.PrincipalPoint':         f'{cxy[0]/pixel_pitch},{cxy[1]/pixel_pitch}',
+             'Xmp.Camera.PerspectiveFocalLength': str((fxy[0] + fxy[1])/2. / pixel_pitch),
+             'Xmp.Camera.PerspectiveDistortion':  ','.join(str(x) for x in (r1,r2,r3,t1,t2)),
+
+             # I don't know how to do this, "right". From looking at other
+             # people's .jpg files, I see that 3 is "cm". I'd like "mm", but I'm
+             # not bothering to figure it out. This is good-enough
+             'Exif.Photo.FocalPlaneResolutionUnit': 3,
+             'Exif.Photo.FocalPlaneXResolution':   make_Rational(pixel_pitch * 10.),
+             'Exif.Photo.FocalPlaneYResolution':   make_Rational(pixel_pitch * 10.),
+            }
 
     print(f"Updating {filename}")
     exif = pyexiv2.ImageMetadata(filename)
@@ -425,7 +454,9 @@ def applyexif(filename,
             print(f"WARNING: key '{key}' already exists in the metadata for '{filename}'. Modifying existing tags is an untested case, so I do nothing for now")
             continue
 
-        tag = pyexiv2.XmpTag(key, tags[key])
+        if   re.match('Xmp',  key): tag = pyexiv2.XmpTag (key, tags[key])
+        elif re.match('Exif', key): tag = pyexiv2.ExifTag(key, tags[key])
+        else: raise Exception("I only know how to make EXIF and XMP tags")
         exif[key] = tag
 
     exif.write()
@@ -435,12 +466,14 @@ def applyexif(filename,
 
 
 
-posefile    = '~/jpl/uavsar/2021-05--grand-canyon/batch1/gps_batch1.txt'
-imageglob   = '~/jpl/uavsar/2021-05--grand-canyon/batch1/cam330068/*.jpg'
+posefile       = '~/jpl/uavsar/2021-05--grand-canyon/batch1/gps_batch1.txt'
+imageglob      = '~/jpl/uavsar/2021-05--grand-canyon/batch1/cam330068/*.jpg'
+model_filename = '~/jpl/sfmviz/cam68-dimacal-equalfxy.cameramodel'
 first_image = 0
 Nimages     = None # all images
 
 
+model_intrinsics = mrcal.cameramodel(os.path.expanduser(model_filename))
 filenames, rpydeg_latlonalt_date = parse_posefile(posefile,
                                                   imageglob,
                                                   first_image,
@@ -471,5 +504,6 @@ lat,lon,alt,r,p,y = decompose_pose(Rt_world_cam)
 for i in range(len(filenames)):
 
     applyexif(filenames[i],
+              model_intrinsics,
               lat[i],lon[i],alt[i],
               r[i],p[i],y[i])

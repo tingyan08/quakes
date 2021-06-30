@@ -6,6 +6,8 @@ import numpy as np
 import numpysane as nps
 import glob
 import pyproj
+import pyexiv2
+import fractions
 import mrcal
 
 
@@ -365,6 +367,66 @@ def applyexif(filename,
               lat,lon,alt,
               # all in rad
               r,p,y):
+
+    # There's a bug in pyexiv2.utils.GPSCoordinate, which rounds all latitudes
+    # and longitudes to the nearest second. Here I work around that bug
+    pyexiv2.utils.GPSCoordinate.__str__orig = pyexiv2.utils.GPSCoordinate.__str__
+    pyexiv2.utils.GPSCoordinate.__str__ = lambda self: f'{self._degrees},{self._minutes}{self._direction}'
+
+    def make_GPSCoordinate(x, islat):
+        # It is completely ridiculous that I have to do all this
+        ax = abs(x)
+        d  = int(ax)
+        m  = 60.*(ax-d)
+        s  = 0
+        if islat:
+            if x<0: sgn = 'S'
+            else:   sgn = 'N'
+        else:
+            if x<0: sgn = 'W'
+            else:   sgn = 'E'
+
+        return pyexiv2.utils.GPSCoordinate(d,m,s,sgn)
+
+    def make_Rational(x):
+        # It is completely ridiculous that I have to do this
+        d = 8192
+        n = int(x*d)
+        return fractions.Fraction(n,d)
+
+    # I offset the "pitch" by 90deg. From experience, this is the offset between
+    # Xmp.drone-parrot.CameraPitchDegree and Xmp.Camera.Pitch. I store the
+    # latter, while I computed the former. No idea why this is all like this
+    tags = { 'Xmp.Camera.Yaw':        str(y*180./np.pi),
+             'Xmp.Camera.Pitch':      str(p*180./np.pi + 90.),
+             'Xmp.Camera.Roll':       str(r*180./np.pi),
+             'Xmp.exif.GPSLatitude':  make_GPSCoordinate(lat, True),
+             'Xmp.exif.GPSLongitude': make_GPSCoordinate(lon, False),
+             'Xmp.exif.GPSAltitude':  make_Rational(alt) }
+
+    print(f"Updating {filename}")
+    exif = pyexiv2.ImageMetadata(filename)
+    exif.read()
+
+    # Required to be able to touch Xmp.Camera tags
+    try:
+        pyexiv2.register_namespace('https://support.pix4d.com/hc/en-us/articles/205732309-EXIF-and-XMP-tag-information-read-by-Pix4D-Desktop/', 'Camera')
+    except:
+        pass
+
+    for key in tags:
+        if key in exif:
+            print(f"WARNING: key '{key}' already exists in the metadata for '{filename}'. Modifying existing tags is an untested case, so I do nothing for now")
+            continue
+
+        tag = pyexiv2.XmpTag(key, tags[key])
+        exif[key] = tag
+
+    exif.write()
+
+    pyexiv2.utils.GPSCoordinate.__str__ = pyexiv2.utils.GPSCoordinate.__str__orig
+
+
 
 
 posefile    = '~/jpl/uavsar/2021-05--grand-canyon/batch1/gps_batch1.txt'

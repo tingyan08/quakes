@@ -374,34 +374,23 @@ def applyexif(filename,
               model_intrinsics,
               lat,lon,alt,
               # all in rad
-              r,p,y):
+              r,p,y,
+              lens_serial_number):
 
-    # There's a bug in pyexiv2.utils.GPSCoordinate, which rounds all latitudes
-    # and longitudes to the nearest second. Here I work around that bug
-    pyexiv2.utils.GPSCoordinate.__str__orig = pyexiv2.utils.GPSCoordinate.__str__
-    pyexiv2.utils.GPSCoordinate.__str__ = lambda self: f'{self._degrees},{self._minutes}{self._direction}'
-
-    def make_GPSCoordinate(x, islat):
+    def make_Rational(x, denominator=65536):
+        # It is completely ridiculous that I have to do this
+        numerator = int(x*denominator)
+        return fractions.Fraction(numerator,denominator)
+    def make_GPSCoordinate(x):
         # It is completely ridiculous that I have to do all this
         ax = abs(x)
         d  = int(ax)
-        m  = 60.*(ax-d)
-        s  = 0
-        if islat:
-            if x<0: sgn = 'S'
-            else:   sgn = 'N'
-        else:
-            if x<0: sgn = 'W'
-            else:   sgn = 'E'
-
-        return pyexiv2.utils.GPSCoordinate(d,m,s,sgn)
-
-    def make_Rational(x):
-        # It is completely ridiculous that I have to do this
-        d = 8192
-        n = int(x*d)
-        return fractions.Fraction(n,d)
-
+        m  = int(60*(ax - d))
+        s  = 3600*(ax - d) - 60*m
+        return \
+            [ fractions.Fraction(d,1),
+              fractions.Fraction(m,1),
+              make_Rational(s) ]
 
     lensmodel,intrinsics = model_intrinsics.intrinsics()
     if lensmodel != 'LENSMODEL_OPENCV5':
@@ -423,9 +412,12 @@ def applyexif(filename,
              # latter, while I computed the former. No idea why this is all like this
              'Xmp.Camera.Pitch':                  str(p*180./np.pi + 90.),
              'Xmp.Camera.Roll':                   str(r*180./np.pi),
-             'Xmp.exif.GPSLatitude':              make_GPSCoordinate(lat, True),
-             'Xmp.exif.GPSLongitude':             make_GPSCoordinate(lon, False),
-             'Xmp.exif.GPSAltitude':              make_Rational(alt),
+             'Exif.GPSInfo.GPSLatitude':          make_GPSCoordinate(abs(lat)),
+             'Exif.GPSInfo.GPSLongitude':         make_GPSCoordinate(abs(lon)),
+             'Exif.GPSInfo.GPSAltitude':          make_Rational(alt),
+             'Exif.GPSInfo.GPSLatitudeRef':       'N' if lat >= 0 else 'S',
+             'Exif.GPSInfo.GPSLongitudeRef':      'E' if lon >= 0 else 'W',
+             'Exif.GPSInfo.GPSAltitudeRef':       '0', # above sea level
              'Xmp.Camera.ModelType':              'perspective',
              'Xmp.Camera.PrincipalPoint':         f'{cxy[0]/pixel_pitch},{cxy[1]/pixel_pitch}',
              'Xmp.Camera.PerspectiveFocalLength': str((fxy[0] + fxy[1])/2. / pixel_pitch),
@@ -437,6 +429,8 @@ def applyexif(filename,
              'Exif.Photo.FocalPlaneResolutionUnit': 3,
              'Exif.Photo.FocalPlaneXResolution':   make_Rational(pixel_pitch * 10.),
              'Exif.Photo.FocalPlaneYResolution':   make_Rational(pixel_pitch * 10.),
+
+             'Exif.Photo.LensSerialNumber':        lens_serial_number,
             }
 
     print(f"Updating {filename}")
@@ -461,16 +455,15 @@ def applyexif(filename,
 
     exif.write()
 
-    pyexiv2.utils.GPSCoordinate.__str__ = pyexiv2.utils.GPSCoordinate.__str__orig
 
 
 
-
-posefile       = '~/jpl/uavsar/2021-05--grand-canyon/batch1/gps_batch1.txt'
-imageglob      = '~/jpl/uavsar/2021-05--grand-canyon/batch1/cam330068/*.jpg'
-model_filename = '~/jpl/sfmviz/cam68-dimacal-equalfxy.cameramodel'
-first_image = 0
-Nimages     = None # all images
+posefile           = '~/jpl/uavsar/2021-05--grand-canyon/batch1/gps_batch1.txt'
+imageglob          = '~/jpl/uavsar/2021-05--grand-canyon/batch1/cam330068/*.jpg'
+model_filename     = '~/jpl/sfmviz/cam68-dimacal-equalfxy.cameramodel'
+first_image        = 0
+Nimages            = 3
+lens_serial_number = 'camera330068'
 
 
 model_intrinsics = mrcal.cameramodel(os.path.expanduser(model_filename))
@@ -506,4 +499,5 @@ for i in range(len(filenames)):
     applyexif(filenames[i],
               model_intrinsics,
               lat[i],lon[i],alt[i],
-              r[i],p[i],y[i])
+              r[i],p[i],y[i],
+              lens_serial_number)

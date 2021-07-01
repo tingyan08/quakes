@@ -427,7 +427,14 @@ def applyexif(filename,
              'Exif.Photo.FocalPlaneXResolution':   make_Rational(pixel_pitch),
              'Exif.Photo.FocalPlaneYResolution':   make_Rational(pixel_pitch),
 
+
+             'Exif.Image.Make':                    'QUAKES',
+             'Exif.Image.Model':                   'EO-5120x3840',
+             'Exif.Photo.LensModel':               'Schneider Xenon FF 100mm T2.1 Lens',
+             'Exif.Photo.BodySerialNumber':        lens_serial_number,
              'Exif.Photo.LensSerialNumber':        lens_serial_number,
+
+             'Exif.Photo.FocalLength':             make_Rational((fxy[0] + fxy[1])/2. / pixel_pitch),
             }
 
     print(f"Updating {filename}")
@@ -460,7 +467,7 @@ imageglob          = '~/jpl/uavsar/2021-05--grand-canyon/batch1/cam330068/*.jpg'
 model_filename     = '~/jpl/sfmviz/cam68-dimacal-equalfxy.cameramodel'
 first_image        = 0
 Nimages            = 3
-lens_serial_number = 'camera330068'
+lens_serial_number = '330068'
 
 
 model_intrinsics = mrcal.cameramodel(os.path.expanduser(model_filename))

@@ -401,10 +401,10 @@ def applyexif(filename,
     r1,r2,t1,t2,r3 = intrinsics[4:]
 
 
-    # pixels/mm. This number is completely made up. Nothing cares about it. We
-    # just need to make sure that fxy and cxy come out correctly, in the units
-    # of pixels
-    pixel_pitch = 1000.
+    # pixels/mm. Datasheet says 6.4um/pixel. The specific number does not matter
+    # at all. We just need to make sure that fxy and cxy come out correctly, in
+    # the units of pixels
+    pixel_pitch = 1./6.4e-3
 
     tags = { 'Xmp.Camera.Yaw':                    str(y*180./np.pi),
              # I offset the "pitch" by 90deg. From experience, this is the offset between
@@ -423,12 +423,9 @@ def applyexif(filename,
              'Xmp.Camera.PerspectiveFocalLength': str((fxy[0] + fxy[1])/2. / pixel_pitch),
              'Xmp.Camera.PerspectiveDistortion':  ','.join(str(x) for x in (r1,r2,r3,t1,t2)),
 
-             # I don't know how to do this, "right". From looking at other
-             # people's .jpg files, I see that 3 is "cm". I'd like "mm", but I'm
-             # not bothering to figure it out. This is good-enough
-             'Exif.Photo.FocalPlaneResolutionUnit': 3,
-             'Exif.Photo.FocalPlaneXResolution':   make_Rational(pixel_pitch * 10.),
-             'Exif.Photo.FocalPlaneYResolution':   make_Rational(pixel_pitch * 10.),
+             'Exif.Photo.FocalPlaneResolutionUnit': 4, # "mm"
+             'Exif.Photo.FocalPlaneXResolution':   make_Rational(pixel_pitch),
+             'Exif.Photo.FocalPlaneYResolution':   make_Rational(pixel_pitch),
 
              'Exif.Photo.LensSerialNumber':        lens_serial_number,
             }

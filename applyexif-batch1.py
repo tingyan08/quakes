@@ -433,8 +433,7 @@ def applyexif(filename,
              'Exif.Photo.LensModel':               'Schneider Xenon FF 100mm T2.1 Lens',
              'Exif.Photo.BodySerialNumber':        lens_serial_number,
              'Exif.Photo.LensSerialNumber':        lens_serial_number,
-
-             'Exif.Photo.FocalLength':             make_Rational((fxy[0] + fxy[1])/2. / pixel_pitch),
+             'Exif.Photo.FocalLength':             100,
             }
 
     print(f"Updating {filename}")

@@ -660,7 +660,7 @@ def applyexif(filename,
         # I offset the "pitch" by 90deg. From experience, this is the offset between
         # Xmp.drone-parrot.CameraPitchDegree and Xmp.Camera.Pitch. I store the
         # latter, while I computed the former. No idea why this is all like this
-        tags['Xmp.Camera.Pitch']             = str(p + 90.)1
+        tags['Xmp.Camera.Pitch']             = str(p + 90.)
         tags['Xmp.Camera.Yaw']               = str(y)
         tags['Xmp.Camera.Roll']              = str(r)
         tags['Exif.GPSInfo.GPSLatitude']     = GPSCoordinate(abs(lat))
@@ -734,7 +734,7 @@ if args.ins_vnl is not None:
 
     # Apply pose corrections
     if args.rt_world_new_world_old is not None:
-        Rt_world_cam = mrcal.compose_Rt( mrcal.Rt_from_rt(np.array(args.rt_world_new_world_old))
+        Rt_world_cam = mrcal.compose_Rt( mrcal.Rt_from_rt(np.array(args.rt_world_new_world_old)),
                                          Rt_world_cam )
     if args.rt_cam_new_cam_old is not None:
         Rt_world_cam = mrcal.compose_Rt( Rt_world_cam,

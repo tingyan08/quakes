@@ -15,6 +15,15 @@ def parse_args():
         argparse.ArgumentParser(description = __doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
 
+    def comma_separated_list(string, N, t):
+        try:
+            l = [t(x) for x in string.split(',')]
+        except:
+            raise argparse.ArgumentTypeError(f"Couldn't parse '{string}' as a comma-separated list of values of type {t}")
+        if len(l) != N:
+            raise argparse.ArgumentTypeError(f"The argument'{string}' should have {N} values, but instead it had {len(l)} values")
+        return l
+
     parser.add_argument('--image0',
                         type=int,
                         default=0,
@@ -101,18 +110,18 @@ def parse_args():
                         down"''')
 
     parser.add_argument('--rt-world-new-world-old',
-                        type = float,
-                        nargs = 6,
+                        type = lambda s: comma_separated_list(s,6,float),
                         help='''A correction to apply to the world <-> camera
                         transformations. This is a mrcal rt transform (6 values)
-                        that maps the original world coord to a corrected one''')
+                        that maps the original world coord to a corrected one.
+                        Must be given as a comma-separated list''')
 
     parser.add_argument('--rt-cam-new-cam-old',
-                        type = float,
-                        nargs = 6,
+                        type = lambda s: comma_separated_list(s,6,float),
                         help='''A correction to apply to the world <-> camera
                         transformations. This is a mrcal rt transform (6 values)
-                        that maps the original camera coords to corrected ones''')
+                        that maps the original camera coords to corrected ones.
+                        Must be given as a comma-separated list''')
 
     parser.add_argument('--model',
                         type=str,
@@ -123,9 +132,8 @@ def parse_args():
                         LENSMODEL_OPENCV4 and LENSMODEL_OPENCV5 are supported''')
 
     parser.add_argument('--image-dims',
-                        type = int,
-                        nargs = 2,
-                        help='''A "WIDTH HEIGHT" pair to specify the image size.
+                        type = lambda s: comma_separated_list(s,2,int),
+                        help='''A "WIDTH,HEIGHT" pair to specify the image size.
                         This is used only if we're given images that require a
                         raw conversion. This is REQUIRED for raw conversions''')
 

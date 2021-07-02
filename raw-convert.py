@@ -154,30 +154,6 @@ def parse_args():
                         converter''')
 
     args = parser.parse_args()
-
-    if args.model is not None:
-        try:
-            m = mrcal.cameramodel(args.model)
-        except:
-            print(f"Couldn't parse cameramodel from '{args.model}'", file=sys.stderr)
-            sys.exit(1)
-
-        lensmodel = m.intrinsics()[1]
-        if not (lensmodel == 'LENSMODEL_PINHOLE' or
-                lensmodel == 'LENSMODEL_OPENCV4' or
-                lensmodel == 'LENSMODEL_OPENCV5'):
-            print(f"I only support LENSMODEL_PINHOLE, LENSMODEL_OPENCV4, LENSMODEL_OPENCV5, but read '{lensmodel}' from '{args.model}'", file=sys.stderr)
-            sys.exit(1)
-
-        if args.pixels_per_mm is None:
-            print(f"Both --model and --pixels-per-mm should be given, or neither should be", file=sys.stderr)
-            sys.exit(1)
-
-    else:
-        if args.pixels_per_mm is not None:
-            print(f"Both --model and --pixels-per-mm should be given, or neither should be", file=sys.stderr)
-            sys.exit(1)
-
     return args
 
 args = parse_args()
@@ -197,6 +173,28 @@ import cv2
 import shutil
 
 
+if args.model is not None:
+    try:
+        m = mrcal.cameramodel(args.model)
+    except:
+        print(f"Couldn't parse cameramodel from '{args.model}'", file=sys.stderr)
+        sys.exit(1)
+
+    lensmodel = m.intrinsics()[0]
+    if not (lensmodel == 'LENSMODEL_PINHOLE' or
+            lensmodel == 'LENSMODEL_OPENCV4' or
+            lensmodel == 'LENSMODEL_OPENCV5'):
+        print(f"I only support LENSMODEL_PINHOLE, LENSMODEL_OPENCV4, LENSMODEL_OPENCV5, but read '{lensmodel}' from '{args.model}'", file=sys.stderr)
+        sys.exit(1)
+
+    if args.pixels_per_mm is None:
+        print(f"Both --model and --pixels-per-mm should be given, or neither should be", file=sys.stderr)
+        sys.exit(1)
+
+else:
+    if args.pixels_per_mm is not None:
+        print(f"Both --model and --pixels-per-mm should be given, or neither should be", file=sys.stderr)
+        sys.exit(1)
 
 ##################### copy of functions from sfmviz.py. Please consolidate
 # https://github.jpl.nasa.gov/kogan/sfmviz
@@ -522,7 +520,7 @@ def parse_ins_vnl_plane(ins_vnl, image0 = 0, Nimages = None, filenames = None):
         # but barf
         if np.max(np.abs(frame_numbers_from_ins_vnl -
                          frame_numbers_from_globs)) > 0:
-            raise Exception(f"The images matched by the globs '{imageglobs}' don't match the frame numbers in ins file '{ins_vnl}'")
+            raise Exception(f"The images matched by the globs don't match the frame numbers in ins file '{ins_vnl}'")
 
     return rpydeg_latlonalt__plane
 
@@ -663,19 +661,19 @@ def process_image(filename,
         elif lensmodel == 'LENSMODEL_OPENCV5':
             r1,r2,t1,t2,r3 = intrinsics[4:]
 
-        tags['Xmp.Camera.PerspectiveDistortion'] = ','.join(str(x) for x in (r1,r2,r3,t1,t2)),
+        tags['Xmp.Camera.PerspectiveDistortion'] = ','.join(str(x) for x in (r1,r2,r3,t1,t2))
 
         if pixels_per_mm is not None:
 
             fxy_mean = (fxy[0] + fxy[1])/2.
 
-            if np.abs(fxy[0] - fxy[1]) < 1e-6:
-                print(f"WARNING: Pix4d assumes fx=fy, but this model has unequal fxy: {fxy}. I write the mean into the EXIF: {fxy_mean}")
+            if np.abs(fxy[0] - fxy[1]) > 1e-6:
+                print(f"WARNING: Pix4d assumes fx==fy, but this model has unequal fxy: {fxy}. I write the mean into the EXIF: {fxy_mean}")
 
-            tags['Xmp.Camera.PrincipalPoint']         = f'{cxy[0]/pixels_per_mm},{cxy[1]/pixels_per_mm}',
-            tags['Xmp.Camera.PerspectiveFocalLength'] = str(fxy_mean / pixels_per_mm),
-            tags['Exif.Photo.FocalPlaneXResolution']  = rational(pixels_per_mm),
-            tags['Exif.Photo.FocalPlaneYResolution']  = rational(pixels_per_mm),
+            tags['Xmp.Camera.PrincipalPoint']         = f'{cxy[0]/pixels_per_mm},{cxy[1]/pixels_per_mm}'
+            tags['Xmp.Camera.PerspectiveFocalLength'] = str(fxy_mean / pixels_per_mm)
+            tags['Exif.Photo.FocalPlaneXResolution']  = rational(pixels_per_mm)
+            tags['Exif.Photo.FocalPlaneYResolution']  = rational(pixels_per_mm)
 
 
     if rpydeg_latlonalt is not None:
@@ -799,7 +797,7 @@ if args.Nimages is not None:
 
 if args.image_dims is None and any([is_raw_image(f) for f in filenames]):
     r0 = [f for f in filenames if is_raw_image(f)][0]
-    raise Exception(f"Some images are raw, but --image-dims not given. First raw image: {r}")
+    raise Exception(f"Some images are raw, but --image-dims not given. First raw image: {r0}")
 
 for f in filenames:
     d0 = os.path.realpath( os.path.abspath( args.outdir ))

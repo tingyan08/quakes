@@ -122,10 +122,28 @@ def parse_args():
                         information into the EXIF tags. Only LENSMODEL_PINHOLE,
                         LENSMODEL_OPENCV4 and LENSMODEL_OPENCV5 are supported''')
 
+    parser.add_argument('--image-dims',
+                        type = int,
+                        nargs = 2,
+                        help='''A "WIDTH HEIGHT" pair to specify the image size.
+                        This is used only if we're given images that require a
+                        raw conversion. This is REQUIRED for raw conversions''')
+
+    parser.add_argument('--outdir',
+                        type=str,
+                        required=True,
+                        help='''The directory where the output images should be
+                        written. Must be specified, and must NOT refer to the
+                        input images. This tool may overwrite some files, but it
+                        will NEVER overwrite its input''')
+
     parser.add_argument('images',
                         type=str,
                         nargs='+',
-                        help='''Globs containing images we're converting''')
+                        help='''Globs containing images we're converting. jpg
+                        and png and tiff images are assumed to already be
+                        usable. Everything else is run through a raw
+                        converter''')
 
     args = parser.parse_args()
 
@@ -168,7 +186,7 @@ import fractions
 import mrcal
 import vnlog
 import cv2
-
+import shutil
 
 
 
@@ -585,21 +603,19 @@ def decompose_pose(Rt_world_cam):
     return rpydeg_latlonalt
 
 
-def applyexif(filename,
-              # Anything that is None is not set
+def process_image(filename,
+                  # Anything that is None is not set
 
-              rpydeg_latlonalt        = None,
-              model_intrinsics        = None,
-              body_manufacturer       = None,
-              body_model              = None,
-              lens_model              = None,
-              body_serial_number      = None,
-              lens_serial_number      = None,
-              focal_length_nominal_mm = None,
-              pixels_per_mm           = None):
+                  rpydeg_latlonalt        = None,
+                  model_intrinsics        = None,
+                  body_manufacturer       = None,
+                  body_model              = None,
+                  lens_model              = None,
+                  body_serial_number      = None,
+                  lens_serial_number      = None,
+                  focal_length_nominal_mm = None,
+                  pixels_per_mm           = None):
 
-
-    print(f"Updating {filename}")
 
     def rational(x, denominator=65536):
         # It is completely ridiculous that I have to do this
@@ -679,6 +695,32 @@ def applyexif(filename,
     if focal_length_nominal_mm is not None: tags['Exif.Photo.FocalLength']      = rational(focal_length_nominal_mm)
 
 
+
+    # Split the filename into = d + f + e (directory, basename, extension)
+    d,f = os.path.split(filename)
+    f,e = os.path.splitext(f)
+
+    if is_raw_image(filename):
+        # I convert the raw, write the .jpg to disk, and then update the exif of
+        # the file on disk
+        image = read_and_convert_raw(filename,
+                                     *args.image_dims,
+                                     unbayer = True)
+
+        filename = f"{args.outdir}/{f}.jpg"
+
+        cv2.imwrite(filename,
+                    image,
+                    [cv2.IMWRITE_JPEG_QUALITY, 95])
+
+    else:
+        # I already have a processed image on disk. I copy it to its final
+        # location, and update the exif there
+        filename_out = f"{args.outdir}/{f}{e}"
+        shutil.copy(filename, filename_out)
+        filename = filename_out
+
+    print(f"Writing {filename}")
     exif = pyexiv2.ImageMetadata(filename)
     exif.read()
 
@@ -724,6 +766,14 @@ def read_and_convert_raw(filename, width, height,
     return image
 
 
+def is_raw_image(f):
+    try:
+        pattern = is_raw_image.pattern
+    except:
+        pattern = is_raw_image.pattern = \
+            re.compile('.*\.(jpg|jpeg|png|tif|tiff)$', re.I)
+    return not re.match(pattern, f)
+
 
 
 
@@ -738,6 +788,20 @@ filenames = sorted( [f for g in args.images for f in glob.glob(os.path.expanduse
 filenames = filenames[args.image0:]
 if args.Nimages is not None:
     filenames = filenames[:args.Nimages]
+
+if args.image_dims is None and any([is_raw_image(f) for f in filenames]):
+    r0 = [f for f in filenames if is_raw_image(f)][0]
+    raise Exception(f"Some images are raw, but --image-dims not given. First raw image: {r}")
+
+for f in filenames:
+    d0 = os.path.realpath( os.path.abspath( args.outdir ))
+    d1 = os.path.realpath( os.path.abspath( os.path.split(f)[0] ))
+    if d0 == d1:
+        raise Exception("--outdir may not be a path that contains any of the input files. I want to make sure to never overwrite the input")
+
+os.makedirs(args.outdir, mode=0o775, exist_ok = True)
+
+
 
 if args.ins_vnl is not None:
     rpydeg_latlonalt__plane = \
@@ -778,13 +842,13 @@ else:
 
 for i in range(len(filenames)):
 
-    applyexif(filenames[i],
-              rpydeg_latlonalt[i] if rpydeg_latlonalt is not None else None,
-              model_intrinsics,
-              args.body_manufacturer,
-              args.body_model,
-              args.lens_model,
-              args.body_serial_number,
-              args.lens_serial_number,
-              args.focal_length_nominal_mm,
-              args.pixels_per_mm)
+    process_image(filenames[i],
+                  rpydeg_latlonalt[i] if rpydeg_latlonalt is not None else None,
+                  model_intrinsics,
+                  args.body_manufacturer,
+                  args.body_model,
+                  args.lens_model,
+                  args.body_serial_number,
+                  args.lens_serial_number,
+                  args.focal_length_nominal_mm,
+                  args.pixels_per_mm)

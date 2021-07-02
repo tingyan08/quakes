@@ -167,6 +167,7 @@ import pyexiv2
 import fractions
 import mrcal
 import vnlog
+import cv2
 
 
 
@@ -698,6 +699,30 @@ def applyexif(filename,
         exif[key] = tag
 
     exif.write()
+
+
+def read_and_convert_raw(filename, width, height,
+                         unbayer = True):
+
+    datasize_expected = width*height
+
+    filesize = os.path.getsize(filename)
+
+    if filesize <= datasize_expected:
+        raise Exception(f"I expected {datasize_expected} bytes of pixel data, but the given file only has {filesize} bytes in it. That is too small")
+
+    image = np.memmap(filename,
+                      dtype  = np.uint8,
+                      mode   = 'r',
+                      offset = filesize - datasize_expected,
+                      shape  = (height,width),
+                      order  = 'C')
+
+    if unbayer:
+        image = cv2.cvtColor(image, cv2.COLOR_BayerRG2RGB)
+
+    return image
+
 
 
 

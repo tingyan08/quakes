@@ -769,6 +769,32 @@ def read_and_convert_raw(filename, width, height,
     if unbayer:
         image = cv2.cvtColor(image, cv2.COLOR_BayerRG2RGB)
 
+        for i in range(3):
+
+            if 0:
+                # Histogram equalization
+                image[...,i] = cv2.equalizeHist(image[...,i])
+            elif 0:
+                # Stretch histogram. Not clearly doing much. It's looking at
+                # min/max, and we probably have stragglers at 0 and 255, which
+                # would cause this function to do nothing
+                image[...,i] = \
+                    cv2.normalize(image[...,i],
+                                  None,
+                                  alpha     = 0,
+                                  beta      = 255,
+                                  norm_type = cv2.NORM_MINMAX,
+                                  dtype     = cv2.CV_8U)
+            else:
+                # grayworld
+
+                # It'd be great if there was a saturating multiply that I can
+                # use without converting everything to floating-point, and
+                # explicitly clipping
+                m = np.mean(image[...,i])
+                image[...,i] = np.clip((image[...,i].astype(np.float32) * 128/m), 0, 255).astype(np.uint8)
+
+
     return image
 
 

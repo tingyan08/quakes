@@ -2,6 +2,32 @@
 
 r'''Convert UAVSAR images from raw bits to jpg, and apply the EXIF metadata
 
+This is the pre-processing tool used to convert the data we collect into a form
+that's ingestable by Pix4D. The inputs are:
+
+- The images. These may be something standard (like .jpg) or "raw" data. Here
+  "raw" means some arbitrary data we ignore, followed by the imager output, 8
+  bits per pixel. The output is debayered to produce color data, and some image
+  processing is applied to nice-ify the output. This treatment handles arbitrary
+  headers in the "raw" data; .pgm works
+
+- INS data from the airplane. A .vnl table of plane poses, synced with the frame
+  numbers in the captured images. This is optional. If omitted, no pose data is
+  written into the EXIF in the output
+
+- Camera metadata: model numbers and serial numbers of the cameras. Optional. If
+  omitted, we don't write it
+
+- Plane-camera transform. These are represented by 3 euler angles. If omitted,
+  no pose information is written into the EXIF in the output
+
+- geometric correction. A full 6DOF transform applied to the camera poses, to
+  compensate for errors in the other geometric parameters. If omitted, no
+  correction is applied.
+
+- camera models: a mrcal model used to provide the intrinsics. If given, these
+  are written into the EXIF of the output
+
 '''
 
 import sys

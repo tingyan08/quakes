@@ -718,6 +718,10 @@ def process_image(filename,
         tags['Exif.GPSInfo.GPSLatitudeRef']  = 'N' if lat >= 0 else 'S'
         tags['Exif.GPSInfo.GPSLongitudeRef'] = 'E' if lon >= 0 else 'W'
 
+        # Indicate very poor GPS accuracy
+        tags['Xmp.Camera.GPSXYAccuracy']     = "1000"
+        tags['Xmp.Camera.GPSZAccuracy']      = "1000"
+
 
     if body_manufacturer       is not None: tags['Exif.Image.Make']             = body_manufacturer
     if body_model              is not None: tags['Exif.Image.Model']            = body_model

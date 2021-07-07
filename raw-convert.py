@@ -845,8 +845,11 @@ if args.model is not None:
 else:
     model_intrinsics = None
 
-
-filenames = sorted( [f for g in args.images for f in glob.glob(os.path.expanduser(g))] )
+expanded_globs = [glob.glob(os.path.expanduser(g)) for g in args.images]
+for i in range(len(expanded_globs)):
+    if len(expanded_globs[i]) == 0:
+        raise Exception(f"Glob {args.images[i]} matched nothing")
+filenames = sorted( [f for g in expanded_globs for f in g] )
 filenames = filenames[args.image0:]
 if args.Nimages is not None:
     filenames = filenames[:args.Nimages]

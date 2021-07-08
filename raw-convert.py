@@ -353,30 +353,30 @@ world coords (north,east,down)
     '''
 
     r,p,y = nps.transpose(rpy)
-    sr,cr = np.sin(r),np.cos(r)
-    sp,cp = np.sin(p),np.cos(p)
     sy,cy = np.sin(y),np.cos(y)
+    sp,cp = np.sin(p),np.cos(p)
+    sr,cr = np.sin(r),np.cos(r)
 
     # I want to do this:
-    #   Rr = np.array(((1., 0.,  0.),
-    #                  (0., cr, -sr),
-    #                  (0., sr,  cr)))
+    #   Ry = np.array((( cy, -sy, 0.),
+    #                  ( sy,  cy, 0.),
+    #                  ( 0.,  0., 1.)))
     #
     #   Rp = np.array((( cp, 0., sp),
     #                  ( 0., 1., 0.),
     #                  (-sp, 0., cp)))
     #
-    #   Ry = np.array((( cy, -sy, 0.),
-    #                  ( sy,  cy, 0.),
-    #                  ( 0.,  0., 1.)))
+    #   Rr = np.array(((1., 0.,  0.),
+    #                  (0., cr, -sr),
+    #                  (0., sr,  cr)))
     #
     # But each R should have shape (...,3,3), so I need to do more typing:
-    Rr = np.zeros( r.shape + (3,3), dtype=float)
-    Rr[...,0,0] = 1.
-    Rr[...,1,1] = cr
-    Rr[...,1,2] = -sr
-    Rr[...,2,1] = sr
-    Rr[...,2,2] = cr
+    Ry = np.zeros( y.shape + (3,3), dtype=float)
+    Ry[...,2,2] = 1.
+    Ry[...,0,0] = cy
+    Ry[...,0,1] = -sy
+    Ry[...,1,0] = sy
+    Ry[...,1,1] = cy
 
     Rp = np.zeros( p.shape + (3,3), dtype=float)
     Rp[...,1,1] = 1.
@@ -385,20 +385,21 @@ world coords (north,east,down)
     Rp[...,2,0] = -sp
     Rp[...,2,2] = cp
 
-    Ry = np.zeros( y.shape + (3,3), dtype=float)
-    Ry[...,2,2] = 1.
-    Ry[...,0,0] = cy
-    Ry[...,0,1] = -sy
-    Ry[...,1,0] = sy
-    Ry[...,1,1] = cy
+    Rr = np.zeros( r.shape + (3,3), dtype=float)
+    Rr[...,0,0] = 1.
+    Rr[...,1,1] = cr
+    Rr[...,1,2] = -sr
+    Rr[...,2,1] = sr
+    Rr[...,2,2] = cr
 
     R_world_body = nps.matmult(Ry,Rp,Rr)
 
     if not have_plane_poses:
 
-        # Easy case. rpy is from a drone, and describes the pose of the CAMERA.
-        # The camera coords they're using are (forward,right,down), while I want
-        # (right,down,forward), so we transform
+        # Easy case. The rpy we just processed describes the pose of the CAMERA.
+        # So we're almost done. The camera coords they're using are
+        # (forward,right,down), while I want (right,down,forward), so we
+        # transform
 
         R_body_cam = np.array(((0,0,1),
                                (1,0,0),
@@ -407,13 +408,16 @@ world coords (north,east,down)
         return nps.matmult(R_world_body, R_body_cam)
 
 
-    # Hard case. We have rpy for the PLANE. In my one test case so far I have
-    # the cameras looking ~90deg to the left and are mounted sideways (roll ~
-    # 90deg), and are looking some amount down (non-zero pitch). I need to
-    # incorporate the rotations AND take into account the different coord
-    # systems. The plane (body) coordinate system is (forward,right,down), while
-    # the mrcal camera coord system is (right,down,forward). Testing in my one
-    # case so far tells me that for sp = sin(pitch), cp = sin(pitch) I should get
+    # Hard case. The rpy we just processed is from a PLANE. We need an extra
+    # transformation to remap this into CAMERA coords. We have another set of
+    # (yaw,pitch,roll), describing the pose of the camera in respect to the
+    # plane. In my one test case so far I have the cameras looking ~90deg to the
+    # left and are mounted sideways (roll ~ 90deg), and are looking some amount
+    # down (non-zero pitch). I need to incorporate the rotations AND take into
+    # account the different coord systems. The plane (body) coordinate system is
+    # (forward,right,down), while the mrcal camera coord system is
+    # (right,down,forward). Testing in my one case so far tells me that for sp =
+    # sin(pitch), cp = sin(pitch) I should get
     #
     #   R_cam_body = np.array((
     #       # cam-right in plane coords
@@ -423,7 +427,8 @@ world coords (north,east,down)
     #       # cam-forward in plane coords
     #       (0., -cp, sp)))
     #
-    # I validate using this script:
+    # I engineer a sequence of Euler angle transformations that produces this
+    # result, and I validate it using this script:
     #
     #    import numpy as np
     #    import numpysane as nps
@@ -433,7 +438,7 @@ world coords (north,east,down)
     #    sy,cy = sympy.symbols(('sy','cy'))
     #    sr,cr = sympy.symbols(('sr','cr'))
     #
-    #    # pitch and roll = 90deg (camera is sideways, looking out to the side)
+    #    # yaw and roll = 90deg (camera is sideways, looking out to the side)
     #    sy = 1
     #    cy = 0
     #
@@ -500,7 +505,6 @@ coords (right,down,forward) to world coords (north,east,down).
                                               camera_roll_deg  = camera_roll_deg,
                                               camera_yaw_deg   = camera_yaw_deg,
                                               camera_pitch_deg = camera_pitch_deg)
-
 
     lat,lon,alt = nps.transpose(rpydeg_latlonalt__plane[:, 3:6])
 

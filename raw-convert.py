@@ -485,7 +485,7 @@ world coords (north,east,down)
     return nps.matmult(R_world_body, nps.transpose(R_cam_body))
 
 
-def Rt_world_cam__compute(rpydeg_latlonalt__plane,
+def Rt_world_cam__compute(rpydeg_latlonalt,
                           have_plane_poses,
                           camera_roll_deg  = 0,
                           camera_yaw_deg   = 0,
@@ -498,7 +498,7 @@ coords (right,down,forward) to world coords (north,east,down).
 
     '''
 
-    rpy = rpydeg_latlonalt__plane[:,:3] * np.pi/180.
+    rpy = rpydeg_latlonalt[:,:3] * np.pi/180.
 
     # shape (...,3,3)
     R_world_cam = R_world_cam__from_pix4d_rpy(rpy, have_plane_poses,
@@ -506,7 +506,7 @@ coords (right,down,forward) to world coords (north,east,down).
                                               camera_yaw_deg   = camera_yaw_deg,
                                               camera_pitch_deg = camera_pitch_deg)
 
-    lat,lon,alt = nps.transpose(rpydeg_latlonalt__plane[:, 3:6])
+    lat,lon,alt = nps.transpose(rpydeg_latlonalt[:, 3:6])
 
     # shape (...,1,3)
     ned = nps.glue( # shape (...,1,2)
@@ -532,14 +532,14 @@ def parse_ins_vnl_plane(ins_vnl, image0 = 0, Nimages = None, filenames = None):
     if Nimages is not None:
         x = x[:Nimages]
 
-    rpydeg_latlonalt__plane = x[:, (dict_key_index['roll_deg'],
+    rpydeg_latlonalt = x[:, (dict_key_index['roll_deg'],
                                     dict_key_index['pitch_deg'],
                                     dict_key_index['heading_deg'],
                                     dict_key_index['latitude'],
                                     dict_key_index['longitude'],
                                     dict_key_index['altitude_ft'] ) ]
 
-    rpydeg_latlonalt__plane[:,5] *= 12.*2.54/100.
+    rpydeg_latlonalt[:,5] *= 12.*2.54/100.
 
     if filenames is not None:
         frame_numbers_from_globs = np.array([int(os.path.basename(f).split('_')[0]) for f in filenames])
@@ -552,7 +552,7 @@ def parse_ins_vnl_plane(ins_vnl, image0 = 0, Nimages = None, filenames = None):
                          frame_numbers_from_globs)) > 0:
             raise Exception(f"The images matched by the globs don't match the frame numbers in ins file '{ins_vnl}'")
 
-    return rpydeg_latlonalt__plane
+    return rpydeg_latlonalt
 
 #################################################
 

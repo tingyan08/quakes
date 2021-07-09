@@ -61,7 +61,7 @@ def parse_args():
                         help='''Process N images starting at image0. If omitted,
                         process all images''')
 
-    parser.add_argument('--ins-vnl',
+    parser.add_argument('--ins-vnl-plane',
                         type=str,
                         help='''A vnl containing a time-series of poses of the
                         PLANE. We transform these into camera poses, and write
@@ -524,9 +524,9 @@ coords (right,down,forward) to world coords (north,east,down).
     return Rt_world_cam
 
 
-def parse_ins_vnl_plane(ins_vnl, image0 = 0, Nimages = None, filenames = None):
+def parse_ins_vnl_plane(ins_vnl_plane, image0 = 0, Nimages = None, filenames = None):
 
-    x,list_keys,dict_key_index = vnlog.slurp(ins_vnl)
+    x,list_keys,dict_key_index = vnlog.slurp(ins_vnl_plane)
 
     x = x[image0:]
     if Nimages is not None:
@@ -543,14 +543,14 @@ def parse_ins_vnl_plane(ins_vnl, image0 = 0, Nimages = None, filenames = None):
 
     if filenames is not None:
         frame_numbers_from_globs = np.array([int(os.path.basename(f).split('_')[0]) for f in filenames])
-        frame_numbers_from_ins_vnl = x[:,dict_key_index['frame_index']].astype(int)
+        frame_numbers_from_ins_vnl_plane = x[:,dict_key_index['frame_index']].astype(int)
 
         # This is loose. I assume that the files matching the globs completely match
-        # the records in the ins_vnl. If they don't, I don't try to figure it out,
+        # the records in the ins_vnl_plane. If they don't, I don't try to figure it out,
         # but barf
-        if np.max(np.abs(frame_numbers_from_ins_vnl -
+        if np.max(np.abs(frame_numbers_from_ins_vnl_plane -
                          frame_numbers_from_globs)) > 0:
-            raise Exception(f"The images matched by the globs don't match the frame numbers in ins file '{ins_vnl}'")
+            raise Exception(f"The images matched by the globs don't match the frame numbers in ins file '{ins_vnl_plane}'")
 
     return rpydeg_latlonalt
 
@@ -872,9 +872,9 @@ os.makedirs(args.outdir, mode=0o775, exist_ok = True)
 
 
 
-if args.ins_vnl is not None:
+if args.ins_vnl_plane is not None:
     rpydeg_latlonalt__plane = \
-        parse_ins_vnl_plane(args.ins_vnl,
+        parse_ins_vnl_plane(args.ins_vnl_plane,
                             args.image0,
                             args.Nimages,
                             filenames)

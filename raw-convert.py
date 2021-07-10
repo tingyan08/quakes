@@ -324,11 +324,10 @@ be done before calling this function
                      axis=-1 )
 
 
-def R_world_cam__from_pix4d_rpy(rpy,
-                                have_plane_poses = False,
-                                camera_roll_deg  = 0,
-                                camera_yaw_deg   = 0,
-                                camera_pitch_deg = 0):
+def R_world_cam__from_pix4d_rpy_plane(rpy_plane,
+                                      camera_roll_deg  = 0,
+                                      camera_yaw_deg   = 0,
+                                      camera_pitch_deg = 0):
     r'''Computes a rotation from pix4d-style euler angles
 
 There are many interpretations of "roll,pitch,yaw". This function follows the
@@ -352,7 +351,7 @@ world coords (north,east,down)
 
     '''
 
-    r,p,y = nps.transpose(rpy)
+    r,p,y = nps.transpose(rpy_plane)
     sy,cy = np.sin(y),np.cos(y)
     sp,cp = np.sin(p),np.cos(p)
     sr,cr = np.sin(r),np.cos(r)
@@ -394,27 +393,13 @@ world coords (north,east,down)
 
     R_world_body = nps.matmult(Ry,Rp,Rr)
 
-    if not have_plane_poses:
-
-        # Easy case. The rpy we just processed describes the pose of the CAMERA.
-        # So we're almost done. The camera coords they're using are
-        # (forward,right,down), while I want (right,down,forward), so we
-        # transform
-
-        R_body_cam = np.array(((0,0,1),
-                               (1,0,0),
-                               (0,1,0)))
-
-        return nps.matmult(R_world_body, R_body_cam)
-
-
-    # Hard case. The rpy we just processed is from a PLANE. We need an extra
-    # transformation to remap this into CAMERA coords. We have another set of
-    # (yaw,pitch,roll), describing the pose of the camera in respect to the
-    # plane. In my one test case so far I have the cameras looking ~90deg to the
-    # left and are mounted sideways (roll ~ 90deg), and are looking some amount
-    # down (non-zero pitch). I need to incorporate the rotations AND take into
-    # account the different coord systems. The plane (body) coordinate system is
+    # The rpy we just processed is from a PLANE. We need an extra transformation
+    # to remap this into CAMERA coords. We have another set of (yaw,pitch,roll),
+    # describing the pose of the camera in respect to the plane. In my one test
+    # case so far I have the cameras looking ~90deg to the left and are mounted
+    # sideways (roll ~ 90deg), and are looking some amount down (non-zero
+    # pitch). I need to incorporate the rotations AND take into account the
+    # different coord systems. The plane (body) coordinate system is
     # (forward,right,down), while the mrcal camera coord system is
     # (right,down,forward). Testing in my one case so far tells me that for sp =
     # sin(pitch), cp = sin(pitch) I should get
@@ -485,8 +470,7 @@ world coords (north,east,down)
     return nps.matmult(R_world_body, nps.transpose(R_cam_body))
 
 
-def Rt_world_cam__compute(rpydeg_latlonalt,
-                          have_plane_poses,
+def Rt_world_cam__compute(rpydeg_latlonalt__plane,
                           camera_roll_deg  = 0,
                           camera_yaw_deg   = 0,
                           camera_pitch_deg = 0):
@@ -498,15 +482,15 @@ coords (right,down,forward) to world coords (north,east,down).
 
     '''
 
-    rpy = rpydeg_latlonalt[:,:3] * np.pi/180.
+    rpy = rpydeg_latlonalt__plane[:,:3] * np.pi/180.
 
     # shape (...,3,3)
-    R_world_cam = R_world_cam__from_pix4d_rpy(rpy, have_plane_poses,
-                                              camera_roll_deg  = camera_roll_deg,
-                                              camera_yaw_deg   = camera_yaw_deg,
-                                              camera_pitch_deg = camera_pitch_deg)
+    R_world_cam = R_world_cam__from_pix4d_rpy_plane(rpy,
+                                                    camera_roll_deg  = camera_roll_deg,
+                                                    camera_yaw_deg   = camera_yaw_deg,
+                                                    camera_pitch_deg = camera_pitch_deg)
 
-    lat,lon,alt = nps.transpose(rpydeg_latlonalt[:, 3:6])
+    lat,lon,alt = nps.transpose(rpydeg_latlonalt__plane[:, 3:6])
 
     # shape (...,1,3)
     ned = nps.glue( # shape (...,1,2)
@@ -533,11 +517,11 @@ def parse_ins_vnl_plane(ins_vnl_plane, image0 = 0, Nimages = None, filenames = N
         x = x[:Nimages]
 
     rpydeg_latlonalt = x[:, (dict_key_index['roll_deg'],
-                                    dict_key_index['pitch_deg'],
-                                    dict_key_index['heading_deg'],
-                                    dict_key_index['latitude'],
-                                    dict_key_index['longitude'],
-                                    dict_key_index['altitude_ft'] ) ]
+                             dict_key_index['pitch_deg'],
+                             dict_key_index['heading_deg'],
+                             dict_key_index['latitude'],
+                             dict_key_index['longitude'],
+                             dict_key_index['altitude_ft'] ) ]
 
     rpydeg_latlonalt[:,5] *= 12.*2.54/100.
 
@@ -562,87 +546,60 @@ def parse_ins_vnl_plane(ins_vnl_plane, image0 = 0, Nimages = None, filenames = N
 
 def decompose_pose(Rt_world_cam):
 
-    rpydeg_latlonalt = np.zeros( Rt_world_cam.shape[:-2] + (6,), dtype=float)
+    # "world" is (N,E,down)
+
+    latlonalt_opkdeg = np.zeros( Rt_world_cam.shape[:-2] + (6,), dtype=float)
 
     ned = Rt_world_cam[...,3,:]
 
-    rpydeg_latlonalt[..., 3:5] = latlon_from_ne(ned[..., :2])
+    latlonalt_opkdeg[..., :2] = latlon_from_ne(ned[..., :2])
 
     # altitude is measured UP, so I invert the DOWN value
-    rpydeg_latlonalt[..., 5] = -ned[..., 2]
+    latlonalt_opkdeg[..., 2] = -ned[..., 2]
 
-
-    # I now reverse the R_world_cam__from_pix4d_rpy() function
+    # Docs are here:
+    #
+    #   https://support.pix4d.com/hc/en-us/articles/202558969
+    #
+    # Specifically, in the document linked on that page, and with a copy on our
+    # server:
+    #
+    #   https://aargh.jpl.nasa.gov/proj/uavsar/docs/Pix4D_Yaw_Pitch_Roll_Omega_to_Phi_Kappa_angles_and_conversion.pdf
     R_world_cam = Rt_world_cam[..., :3,:]
 
-    R_body_cam = np.array(((0,0,1),
-                           (1,0,0),
-                           (0,1,0)))
-
-    R_world_body = nps.matmult( R_world_cam, nps.transpose(R_body_cam))
-
-    r'''I symbolically evaluate the key transform in R_world_cam__from_pix4d_rpy using sympy:
-
-        #!/usr/bin/python3
-
-        import sys
-        import numpy as np
-        import numpysane as nps
-        import sympy
-
-        sr,cr = sympy.symbols(('sr','cr'))
-        sp,cp = sympy.symbols(('sp','cp'))
-        sy,cy = sympy.symbols(('sy','cy'))
-
-
-        Rr = np.array(((1, 0 ,  0),
-                       (0, cr , -sr),
-                       (0, sr,  cr)))
-
-        Rp = np.array(((cp , 0, sp),
-                       (0 ,  1, 0),
-                       (-sp, 0, cp)))
-
-        Ry = np.array(((cy, -sy, 0),
-                       (sy, cy,  0),
-                       (0,  0,   1)))
-
-        print(repr(nps.matmult(Ry,Rp,Rr)))
-
-
-    ---> array([[cp*cy, -cr*sy + cy*sp*sr, cr*cy*sp + sr*sy],
-                [cp*sy,  cr*cy + sp*sr*sy, cr*sp*sy - cy*sr],
-                [-sp,    cp*sr,            cp*cr]],           dtype=object)
-
-
-    and I can then use this to back-out the Euler angles
-
-    '''
-
-    # I assume that pitch ~ 0, so sp ~ 0, cp > 0.
+    # The pdf document above describes a transformation C_EB.
     #
-    # This is by construction. pitch=0 means we're looking out horizontally. If
-    # we look straight down, then pitch ~ 90deg. If we look past 90deg, we'll
-    # keep pitch <= 90deg, but compensate by yawing by 180deg
-    sp = -R_world_body[..., 2,0]
-    cp = np.sqrt(1. - sp*sp)
+    # I'm assuming the Earth is locally flat, so the coord system E is always
+    # aligned with the ground. Docs say this coord system is (E,N,up)
+    R_E_world = np.array(((0,1, 0),
+                          (1,0, 0),
+                          (0,0,-1)))
 
-    rpydeg_latlonalt[...,1] = 180./np.pi * np.arctan2(sp,cp)
-    rpydeg_latlonalt[...,2] = 180./np.pi * np.arctan2(R_world_body[..., 1,0], R_world_body[..., 0,0])
-    rpydeg_latlonalt[...,0] = 180./np.pi * np.arctan2(R_world_body[..., 2,1], R_world_body[..., 2,2])
+    # The coord system B is aligned with the camera. It is (right,up,back)
+    R_cam_B = np.array(((1, 0, 0),
+                        (0,-1, 0),
+                        (0, 0,-1)))
 
-    if np.linalg.norm(R_world_cam__from_pix4d_rpy(rpydeg_latlonalt[...,:3] * np.pi/180.,
-                                                  False) -
-                      R_world_cam) > 1e-8:
-        raise Exception("Inverse of R_world_cam__from_pix4d_rpy() computed incorrectly")
+    R_EB = nps.matmult(R_E_world, R_world_cam, R_cam_B)
 
-    return rpydeg_latlonalt
+    # The pdf document defines C_EB (same as my R_EB) as a function of
+    # (omega,phi,kappa). I decompose
+
+    # I assume that phi is in [-180,180], so cos(phi)>=0
+    sp = R_EB[..., 0,2]
+    p = np.arcsin(sp)
+    k = np.arctan2(-R_EB[..., 0,1], R_EB[..., 0,0])
+    o = np.arctan2(-R_EB[..., 1,2], R_EB[..., 2,2])
+
+    latlonalt_opkdeg[..., 3] = o*180./np.pi
+    latlonalt_opkdeg[..., 4] = p*180./np.pi
+    latlonalt_opkdeg[..., 5] = k*180./np.pi
+    return latlonalt_opkdeg
 
 
 def process_image(filename,
                   # Anything that is None is not set
 
-                  rpydeg_latlonalt        = None,
                   model_intrinsics        = None,
                   body_manufacturer       = None,
                   body_model              = None,
@@ -657,20 +614,9 @@ def process_image(filename,
         # It is completely ridiculous that I have to do this
         numerator = int(x*denominator)
         return fractions.Fraction(numerator,denominator)
-    def GPSCoordinate(x):
-        # It is completely ridiculous that I have to do all this
-        ax = abs(x)
-        d  = int(ax)
-        m  = int(60*(ax - d))
-        s  = 3600*(ax - d) - 60*m
-        return \
-            [ fractions.Fraction(d,1),
-              fractions.Fraction(m,1),
-              rational(s) ]
 
 
-    tags = { 'Exif.GPSInfo.GPSAltitudeRef':         '0', # above sea level
-             'Xmp.Camera.ModelType':                'perspective',
+    tags = { 'Xmp.Camera.ModelType':                'perspective',
              'Exif.Photo.FocalPlaneResolutionUnit': 4, # "mm"
             }
 
@@ -698,33 +644,12 @@ def process_image(filename,
             fxy_mean = (fxy[0] + fxy[1])/2.
 
             if np.abs(fxy[0] - fxy[1]) > 1e-6:
-                print(f"WARNING: Pix4d assumes fx==fy, but this model has unequal fxy: {fxy}. I write the mean into the EXIF: {fxy_mean}")
+                print(f"## WARNING: Pix4d assumes fx==fy, but this model has unequal fxy: {fxy}. I write the mean into the EXIF: {fxy_mean}")
 
             tags['Xmp.Camera.PrincipalPoint']         = f'{cxy[0]/pixels_per_mm},{cxy[1]/pixels_per_mm}'
             tags['Xmp.Camera.PerspectiveFocalLength'] = str(fxy_mean / pixels_per_mm)
             tags['Exif.Photo.FocalPlaneXResolution']  = rational(pixels_per_mm)
             tags['Exif.Photo.FocalPlaneYResolution']  = rational(pixels_per_mm)
-
-
-    if rpydeg_latlonalt is not None:
-        r,p,y       = rpydeg_latlonalt[:3]
-        lat,lon,alt = rpydeg_latlonalt[3:6]
-
-        # I offset the "pitch" by 90deg. From experience, this is the offset between
-        # Xmp.drone-parrot.CameraPitchDegree and Xmp.Camera.Pitch. I store the
-        # latter, while I computed the former. No idea why this is all like this
-        tags['Xmp.Camera.Pitch']             = str(p + 90.)
-        tags['Xmp.Camera.Yaw']               = str(y)
-        tags['Xmp.Camera.Roll']              = str(r)
-        tags['Exif.GPSInfo.GPSLatitude']     = GPSCoordinate(abs(lat))
-        tags['Exif.GPSInfo.GPSLongitude']    = GPSCoordinate(abs(lon))
-        tags['Exif.GPSInfo.GPSAltitude']     = rational(alt)
-        tags['Exif.GPSInfo.GPSLatitudeRef']  = 'N' if lat >= 0 else 'S'
-        tags['Exif.GPSInfo.GPSLongitudeRef'] = 'E' if lon >= 0 else 'W'
-
-        # Indicate very poor GPS accuracy
-        tags['Xmp.Camera.GPSXYAccuracy']     = "1000"
-        tags['Xmp.Camera.GPSZAccuracy']      = "1000"
 
 
     if body_manufacturer       is not None: tags['Exif.Image.Make']             = body_manufacturer
@@ -760,7 +685,6 @@ def process_image(filename,
         shutil.copy(filename, filename_out)
         filename = filename_out
 
-    print(f"Writing {filename}")
     exif = pyexiv2.ImageMetadata(filename)
     exif.read()
 
@@ -772,7 +696,7 @@ def process_image(filename,
 
     for key in tags:
         if key in exif:
-            print(f"WARNING: key '{key}' already exists in the metadata for '{filename}'. Modifying existing tags is an untested case, so I do nothing for now")
+            print(f"## WARNING: key '{key}' already exists in the metadata for '{filename}'. Modifying existing tags is an untested case, so I do nothing for now")
             continue
 
         if   re.match('Xmp',  key): tag = pyexiv2.XmpTag (key, tags[key])
@@ -781,6 +705,8 @@ def process_image(filename,
         exif[key] = tag
 
     exif.write()
+
+    return filename
 
 
 def read_and_convert_raw(filename, width, height,
@@ -873,6 +799,9 @@ os.makedirs(args.outdir, mode=0o775, exist_ok = True)
 
 
 if args.ins_vnl_plane is not None:
+
+    print("# filename latitude longitude altitude_m omega_deg phi_deg kappa_deg")
+
     rpydeg_latlonalt__plane = \
         parse_ins_vnl_plane(args.ins_vnl_plane,
                             args.image0,
@@ -885,7 +814,6 @@ if args.ins_vnl_plane is not None:
     # shape (Ncam, 4,3)
     Rt_world_cam = \
         Rt_world_cam__compute(rpydeg_latlonalt__plane,
-                              have_plane_poses = True,
                               camera_roll_deg  = args.camera_roll_deg,
                               camera_yaw_deg   = args.camera_yaw_deg,
                               camera_pitch_deg = args.camera_pitch_deg)
@@ -898,26 +826,34 @@ if args.ins_vnl_plane is not None:
         Rt_world_cam = mrcal.compose_Rt( Rt_world_cam,
                                          mrcal.invert_Rt(mrcal.Rt_from_rt(np.array(args.rt_cam_new_cam_old))) )
 
-    rpydeg_latlonalt = decompose_pose(Rt_world_cam)
+    latlonalt_opkdeg = decompose_pose(Rt_world_cam)
 
 else:
-    rpydeg_latlonalt__plane = None
-    Rt_world_cam            = None
-    rpydeg_latlonalt        = None
-
+    latlonalt_opkdeg = None
 
 
 
 
 for i in range(len(filenames)):
 
-    process_image(filenames[i],
-                  rpydeg_latlonalt[i] if rpydeg_latlonalt is not None else None,
-                  model_intrinsics,
-                  args.body_manufacturer,
-                  args.body_model,
-                  args.lens_model,
-                  args.body_serial_number,
-                  args.lens_serial_number,
-                  args.focal_length_nominal_mm,
-                  args.pixels_per_mm)
+    filename_out = \
+        process_image(filenames[i],
+                      model_intrinsics,
+                      args.body_manufacturer,
+                      args.body_model,
+                      args.lens_model,
+                      args.body_serial_number,
+                      args.lens_serial_number,
+                      args.focal_length_nominal_mm,
+                      args.pixels_per_mm)
+
+    if latlonalt_opkdeg is not None:
+
+        filename_latlonalt_opkdeg = \
+            nps.atleast_dims( nps.glue(np.array((filename_out,),),
+                                       latlonalt_opkdeg[i],
+                                       axis=-1),
+                              -2 )
+        np.savetxt(sys.stdout, filename_latlonalt_opkdeg, fmt="%s")
+    else:
+        print("## Wrote {filename_out}")

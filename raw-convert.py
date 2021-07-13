@@ -454,8 +454,8 @@ world coords (north,east,down)
     #          [-1, 0, 0],
     #          [0, -cp, sp]], dtype=object)
     #
-    # Which matches the desired R_cam_body above. I run the same script without
-    # hardcoding the roll, and I to get:
+    # Which matches the desired R_cam_body above. Without hardcoding the
+    # yaw,roll: and I to get:
     sr = np.sin(camera_roll_deg  * np.pi/180.0)
     cr = np.cos(camera_roll_deg  * np.pi/180.0)
     sp = np.sin(camera_pitch_deg * np.pi/180.0)
@@ -463,9 +463,30 @@ world coords (north,east,down)
     sy = np.sin(camera_yaw_deg   * np.pi/180.0)
     cy = np.cos(camera_yaw_deg   * np.pi/180.0)
 
-    R_cam_body = np.array([[ cr*sy - cy*sp*sr,  cr*cy + sp*sr*sy, cp*sr],
-                           [-cr*cy*sp - sr*sy,  cr*sp*sy - cy*sr, cp*cr],
-                           [ cp*cy,            -cp*sy,            sp]])
+    # camera (right,down,forward) <- plane (forward,right,down)
+    R_cam_body_reorder = np.array(((0,1,0),
+                                   (0,0,1),
+                                   (1,0,0)))
+
+    # Initially, the camera is oriented horizontally, looking ahead, along the
+    # main axis of the plane.
+    #
+    # We yaw around the vertical axis (camera y)
+    Ryaw   = np.array((( cy, 0, sy),
+                       (  0, 1,  0),
+                       (-sy, 0, cy)))
+
+    # Then we pitch around the camera's new horizontal axis (camera x)
+    Rpitch = np.array(((1,  0,  0),
+                       (0, cp,-sp),
+                       (0, sp, cp)))
+
+    # Then we rotate the camera along its view axis (camera z)
+    Rroll  = np.array((( cr, sr, 0),
+                       (-sr, cr, 0),
+                       (  0,  0, 1)))
+
+    R_cam_body = nps.matmult(Rroll, Rpitch, Ryaw, R_cam_body_reorder)
 
     return nps.matmult(R_world_body, nps.transpose(R_cam_body))
 

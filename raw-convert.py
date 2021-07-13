@@ -616,9 +616,7 @@ def process_image(filename,
         return fractions.Fraction(numerator,denominator)
 
 
-    tags = { 'Xmp.Camera.ModelType':                'perspective',
-             'Exif.Photo.FocalPlaneResolutionUnit': 4, # "mm"
-            }
+    tags = dict()
 
     if model_intrinsics is not None:
         lensmodel, intrinsics = model_intrinsics.intrinsics()
@@ -685,6 +683,10 @@ def process_image(filename,
         shutil.copy(filename, filename_out)
         filename = filename_out
 
+    if not tags:
+        # no EXIF tags to write. I'm done
+        return filename
+
     exif = pyexiv2.ImageMetadata(filename)
     exif.read()
 
@@ -693,6 +695,10 @@ def process_image(filename,
         pyexiv2.register_namespace('https://support.pix4d.com/hc/en-us/articles/205732309-EXIF-and-XMP-tag-information-read-by-Pix4D-Desktop/', 'Camera')
     except:
         pass
+
+    tags.update({ 'Xmp.Camera.ModelType':                'perspective',
+                  'Exif.Photo.FocalPlaneResolutionUnit': 4, # "mm"
+                 })
 
     for key in tags:
         if key in exif:

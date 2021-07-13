@@ -862,4 +862,4 @@ for i in range(len(filenames)):
                               -2 )
         np.savetxt(sys.stdout, filename_latlonalt_opkdeg, fmt="%s")
     else:
-        print("## Wrote {filename_out}")
+        print(f"## Wrote {filename_out}")

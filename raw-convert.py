@@ -134,7 +134,14 @@ def parse_args():
                         degrees. 0deg = "camera is looking along the
                         horizontal"; 90deg = "camera is looking straight
                         down"''')
-
+    parser.add_argument('--camera-pitch-then-yaw',
+                        action='store_true',
+                        help='''Specifies whether --camera-pitch-deg is applied
+                        before --camera-yaw-deg, or the other way around. By
+                        default, we yaw and then pitch (used for the
+                        mostly-side-looking SAR fusion geometry). With
+                        --camera-pitch-then-yaw we go the other way (used for
+                        the mostly down-looking QUAKES geometry)''')
     parser.add_argument('--rt-world-new-world-old',
                         type = lambda s: comma_separated_list(s,6,float),
                         help='''A correction to apply to the world <-> camera
@@ -471,22 +478,27 @@ world coords (north,east,down)
     # Initially, the camera is oriented horizontally, looking ahead, along the
     # main axis of the plane.
     #
-    # We yaw around the vertical axis (camera y)
+    # We yaw around the vertical axis (camera y); assuming no
+    # --camera-pitch-then-yaw
     Ryaw   = np.array((( cy, 0, sy),
                        (  0, 1,  0),
                        (-sy, 0, cy)))
 
-    # Then we pitch around the camera's new horizontal axis (camera x)
+    # Then we pitch around the camera's new horizontal axis (camera x); assuming
+    # no --camera-pitch-then-yaw
     Rpitch = np.array(((1,  0,  0),
                        (0, cp,-sp),
                        (0, sp, cp)))
 
-    # Then we rotate the camera along its view axis (camera z)
+    # Finally we rotate the camera along its view axis (camera z)
     Rroll  = np.array((( cr, sr, 0),
                        (-sr, cr, 0),
                        (  0,  0, 1)))
 
-    R_cam_body = nps.matmult(Rroll, Rpitch, Ryaw, R_cam_body_reorder)
+    if args.camera_pitch_then_yaw:
+        R_cam_body = nps.matmult(Rroll, Ryaw, Rpitch, R_cam_body_reorder)
+    else:
+        R_cam_body = nps.matmult(Rroll, Rpitch, Ryaw, R_cam_body_reorder)
 
     return nps.matmult(R_world_body, nps.transpose(R_cam_body))
 

@@ -332,9 +332,10 @@ be done before calling this function
 
 
 def R_world_cam__from_pix4d_rpy_plane(rpy_plane,
-                                      camera_roll_deg  = 0,
-                                      camera_yaw_deg   = 0,
-                                      camera_pitch_deg = 0):
+                                      camera_roll_deg       = 0,
+                                      camera_yaw_deg        = 0,
+                                      camera_pitch_deg      = 0,
+                                      camera_pitch_then_yaw = False):
     r'''Computes a rotation from pix4d-style euler angles
 
 There are many interpretations of "roll,pitch,yaw". This function follows the
@@ -495,7 +496,7 @@ world coords (north,east,down)
                        (-sr, cr, 0),
                        (  0,  0, 1)))
 
-    if args.camera_pitch_then_yaw:
+    if camera_pitch_then_yaw:
         R_cam_body = nps.matmult(Rroll, Ryaw, Rpitch, R_cam_body_reorder)
     else:
         R_cam_body = nps.matmult(Rroll, Rpitch, Ryaw, R_cam_body_reorder)
@@ -504,9 +505,10 @@ world coords (north,east,down)
 
 
 def Rt_world_cam__compute(rpydeg_latlonalt,
-                          camera_roll_deg  = 0,
-                          camera_yaw_deg   = 0,
-                          camera_pitch_deg = 0):
+                          camera_roll_deg       = 0,
+                          camera_yaw_deg        = 0,
+                          camera_pitch_deg      = 0,
+                          camera_pitch_then_yaw = False):
 
     r'''Computes a transformation from EXIF metadata
 
@@ -519,9 +521,10 @@ coords (right,down,forward) to world coords (north,east,down).
 
     # shape (...,3,3)
     R_world_cam = R_world_cam__from_pix4d_rpy_plane(rpy,
-                                                    camera_roll_deg  = camera_roll_deg,
-                                                    camera_yaw_deg   = camera_yaw_deg,
-                                                    camera_pitch_deg = camera_pitch_deg)
+                                                    camera_roll_deg       = camera_roll_deg,
+                                                    camera_yaw_deg        = camera_yaw_deg,
+                                                    camera_pitch_deg      = camera_pitch_deg,
+                                                    camera_pitch_then_yaw = camera_pitch_then_yaw)
 
     lat,lon,alt = nps.transpose(rpydeg_latlonalt[:, 3:6])
 
@@ -853,9 +856,10 @@ if args.ins_vnl_plane is not None:
     # shape (Ncam, 4,3)
     Rt_world_cam = \
         Rt_world_cam__compute(rpydeg_latlonalt__plane,
-                              camera_roll_deg  = args.camera_roll_deg,
-                              camera_yaw_deg   = args.camera_yaw_deg,
-                              camera_pitch_deg = args.camera_pitch_deg)
+                              camera_roll_deg       = args.camera_roll_deg,
+                              camera_yaw_deg        = args.camera_yaw_deg,
+                              camera_pitch_deg      = args.camera_pitch_deg,
+                              camera_pitch_then_yaw = args.camera_pitch_then_yaw)
 
     # Apply pose corrections
     if args.rt_world_new_world_old is not None:

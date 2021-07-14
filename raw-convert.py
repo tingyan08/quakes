@@ -178,6 +178,19 @@ def parse_args():
                         input images. This tool may overwrite some files, but it
                         will NEVER overwrite its input''')
 
+    parser.add_argument('--saturate',
+                        type    = float,
+                        default = 1e-5,
+                        help='''We apply a histogram stretch when processing the
+                        raw images. To produce visually-pleasing results, we
+                        sacrifice a small amount of the histogram at the low and
+                        high ends. This produces good contrast in the bulk of
+                        the image. The sacrificial amount is specified by this
+                        argument. For instance "--saturate 0.01" means the
+                        darkest 1% of the pixels end up at 0, and the lightest
+                        1% end up at 255. In practice, a much smaller value than
+                        0.01 is desired''')
+
     parser.add_argument('images',
                         type=str,
                         nargs='+',
@@ -771,31 +784,53 @@ def read_and_convert_raw(filename, width, height,
     if unbayer:
         image = cv2.cvtColor(image, cv2.COLOR_BayerRG2RGB)
 
-        for i in range(3):
-
-            if 0:
-                # Histogram equalization
+        # Histogram equalization. Too aggressive, so I leave it off by default
+        if 0:
+            for i in range(3):
                 image[...,i] = cv2.equalizeHist(image[...,i])
-            elif 0:
-                # Stretch histogram. Not clearly doing much. It's looking at
-                # min/max, and we probably have stragglers at 0 and 255, which
-                # would cause this function to do nothing
-                image[...,i] = \
-                    cv2.normalize(image[...,i],
-                                  None,
-                                  alpha     = 0,
-                                  beta      = 255,
-                                  norm_type = cv2.NORM_MINMAX,
-                                  dtype     = cv2.CV_8U)
-            else:
-                # grayworld
+        else:
+            # Grayworld, some sort of stretch equalization
 
-                # It'd be great if there was a saturating multiply that I can
-                # use without converting everything to floating-point, and
-                # explicitly clipping
-                m = np.mean(image[...,i])
-                image[...,i] = np.clip((image[...,i].astype(np.float32) * 128/m), 0, 255).astype(np.uint8)
+            for i in range(3):
 
+                # First, grayworld. This just means "scale the intensities to
+                # move the mean to the center"
+                #
+                # cv2.normalize() gives me the saturated scaling with 8-bit
+                # unsigned values
+                x  = image[..., i]
+                xr = x.ravel()
+
+                cv2.normalize(src       = xr,
+                              dst       = xr,
+                              # *len() to make norm_l1 = mean
+                              alpha     = 128*len(xr),
+                              norm_type = cv2.NORM_L1,
+                              dtype     = cv2.CV_8U)
+
+                # The input was written back to the array. The mean was scaled
+                # to 128. Grayworld is done
+
+                # I linearly stretch the intensities such that the histogram
+                # covers my full range, sacrificing some stragglers at the low
+                # and high ends
+                xmin = np.percentile(xr,       args.saturate*100)
+                xmax = np.percentile(xr, 100 - args.saturate*100)
+
+                np.clip(xr, xmin, xmax, out=xr)
+                cv2.normalize(src = xr,
+                              dst = xr,
+                              alpha     = 0,
+                              beta      = 255,
+                              norm_type = cv2.NORM_MINMAX,
+                              dtype     = cv2.CV_8U)
+
+                # I shoudn't need to do this, but this doesn't work otherwise.
+                # Earlier I did xr = x.ravel(). I expected xr to be a view into
+                # x, but for some reason it's making a copy, so I need to copy
+                # the processed results back. I have no idea why it's making a
+                # copy.
+                x[...] = xr.reshape(x.shape)
 
     return image
 

@@ -561,29 +561,49 @@ def parse_ins_vnl_plane(ins_vnl_plane, image0 = 0, Nimages = None, filenames = N
 
     x,list_keys,dict_key_index = vnlog.slurp(ins_vnl_plane)
 
-    x = x[image0:]
-    if Nimages is not None:
-        x = x[:Nimages]
+    colidx = (dict_key_index['roll_deg'],
+              dict_key_index['pitch_deg'],
+              dict_key_index['heading_deg'],
+              dict_key_index['latitude'],
+              dict_key_index['longitude'],
+              dict_key_index['altitude_ft'] )
 
-    rpydeg_latlonalt = x[:, (dict_key_index['roll_deg'],
-                             dict_key_index['pitch_deg'],
-                             dict_key_index['heading_deg'],
-                             dict_key_index['latitude'],
-                             dict_key_index['longitude'],
-                             dict_key_index['altitude_ft'] ) ]
+    if filenames is None:
 
-    rpydeg_latlonalt[:,5] *= 12.*2.54/100.
+        x = x[image0:]
+        if Nimages is not None:
+            x = x[:Nimages]
 
-    if filenames is not None:
-        frame_numbers_from_globs = np.array([int(os.path.basename(f).split('_')[0]) for f in filenames])
+        rpydeg_latlonalt = x[:, colidx ]
+
+    else:
+        # The set of frames described the the ins_vnl_plane file may be
+        # different from the set of frames in the globs the user requested. I
+        # make sure that we have an ins entry for each requested frame. And I
+        # construct the rpydeg_latlonalt array such that the nth row of this
+        # array represents the nth frame
+        rpydeg_latlonalt = np.zeros((len(filenames),6), dtype=float)
+
         frame_numbers_from_ins_vnl_plane = x[:,dict_key_index['frame_index']].astype(int)
 
-        # This is loose. I assume that the files matching the globs completely match
-        # the records in the ins_vnl_plane. If they don't, I don't try to figure it out,
-        # but barf
-        if np.max(np.abs(frame_numbers_from_ins_vnl_plane -
-                         frame_numbers_from_globs)) > 0:
-            raise Exception(f"The images matched by the globs don't match the frame numbers in ins file '{ins_vnl_plane}'")
+        row_from_frameindex = dict()
+        for row in range(len(frame_numbers_from_ins_vnl_plane)):
+            row_from_frameindex[frame_numbers_from_ins_vnl_plane[row]] = row
+
+
+        frame_numbers_from_globs = np.array([int(os.path.basename(f).split('_')[0]) for f in filenames])
+        for i in range(len(filenames)):
+            frameindex = int(os.path.basename(filenames[i]).split('_')[0])
+
+            try:
+                row = row_from_frameindex[frameindex]
+            except:
+                raise Exception(f"The user requested frame {frameinde} (from file {filenames[i]}), but this wasn't available in {ins_vnl_plane}")
+
+            rpydeg_latlonalt[i,:] = x[row, colidx]
+
+    # altitude: ft -> m
+    rpydeg_latlonalt[:,5] *= 12.*2.54/100.
 
     return rpydeg_latlonalt
 

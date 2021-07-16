@@ -683,10 +683,7 @@ def process_image(filename,
                   body_serial_number      = None,
                   lens_serial_number      = None,
                   focal_length_nominal_mm = None,
-                  pixels_per_mm           = None,
-
-                  camera_poses_only       = False):
-
+                  pixels_per_mm           = None):
 
     def rational(x, denominator=65536):
         # It is completely ridiculous that I have to do this
@@ -761,7 +758,7 @@ def process_image(filename,
         shutil.copy(filename, filename_out)
         filename = filename_out
 
-    if not tags or camera_poses_only:
+    if not tags:
         # no EXIF tags to write. I'm done
         return filename
 
@@ -943,17 +940,26 @@ else:
 
 for i in range(len(filenames)):
 
-    filename_out = \
-        process_image(filenames[i],
-                      model_intrinsics,
-                      args.body_manufacturer,
-                      args.body_model,
-                      args.lens_model,
-                      args.body_serial_number,
-                      args.lens_serial_number,
-                      args.focal_length_nominal_mm,
-                      args.pixels_per_mm,
-                      args.camera_poses_only)
+    if args.camera_poses_only:
+        if is_raw_image(filenames[i]):
+            # Split the filename into = d + f + e (directory, basename, extension)
+            d,f = os.path.split(filenames[i])
+            f,e = os.path.splitext(f)
+            filename_out = f"{args.outdir}/{f}.jpg"
+        else:
+            filename_out = filenames[i]
+    else:
+
+        filename_out = \
+            process_image(filenames[i],
+                          model_intrinsics,
+                          args.body_manufacturer,
+                          args.body_model,
+                          args.lens_model,
+                          args.body_serial_number,
+                          args.lens_serial_number,
+                          args.focal_length_nominal_mm,
+                          args.pixels_per_mm)
 
     if latlonalt_opkdeg is not None:
 

@@ -191,6 +191,13 @@ def parse_args():
                         1% end up at 255. In practice, a much smaller value than
                         0.01 is desired''')
 
+    parser.add_argument('--camera-poses-only',
+                        action = 'store_true',
+                        help='''If given, we ONLY produce the vnl with the
+                        camera poses. We do NOT do any raw conversion. We do NOT
+                        write any images. We do NOT write EXIF tags to
+                        anything''')
+
     parser.add_argument('images',
                         type=str,
                         nargs='+',
@@ -676,7 +683,9 @@ def process_image(filename,
                   body_serial_number      = None,
                   lens_serial_number      = None,
                   focal_length_nominal_mm = None,
-                  pixels_per_mm           = None):
+                  pixels_per_mm           = None,
+
+                  camera_poses_only       = False):
 
 
     def rational(x, denominator=65536):
@@ -752,7 +761,7 @@ def process_image(filename,
         shutil.copy(filename, filename_out)
         filename = filename_out
 
-    if not tags:
+    if not tags or camera_poses_only:
         # no EXIF tags to write. I'm done
         return filename
 
@@ -943,7 +952,8 @@ for i in range(len(filenames)):
                       args.body_serial_number,
                       args.lens_serial_number,
                       args.focal_length_nominal_mm,
-                      args.pixels_per_mm)
+                      args.pixels_per_mm,
+                      args.camera_poses_only)
 
     if latlonalt_opkdeg is not None:
 

@@ -187,8 +187,8 @@ def parse_args():
                         high ends. This produces good contrast in the bulk of
                         the image. The sacrificial amount is specified by this
                         argument. For instance "--saturate 0.01" means the
-                        darkest 1% of the pixels end up at 0, and the lightest
-                        1% end up at 255. In practice, a much smaller value than
+                        darkest 1%% of the pixels end up at 0, and the lightest
+                        1%% end up at 255. In practice, a much smaller value than
                         0.01 is desired''')
 
     parser.add_argument('--camera-poses-only',

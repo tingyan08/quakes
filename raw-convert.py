@@ -198,6 +198,13 @@ def parse_args():
                         write any images. We do NOT write EXIF tags to
                         anything''')
 
+    parser.add_argument('--jobs', '-j',
+                        type=int,
+                        default=1,
+                        help='''parallelize the processing JOBS-ways. This is
+                        like Make, except you're required to explicitly specify
+                        a job count. If omitted, no parallelization happens''')
+
     parser.add_argument('images',
                         type=str,
                         nargs='+',
@@ -224,6 +231,8 @@ import mrcal
 import vnlog
 import cv2
 import shutil
+import multiprocessing
+import signal
 import _raw_convert
 
 
@@ -955,18 +964,27 @@ else:
 
 
 
-for i in range(len(filenames)):
 
-    if args.camera_poses_only:
+def output_line(f,i):
+    if latlonalt_opkdeg is not None:
+        print(' '.join( [f] + [str(x) for x in latlonalt_opkdeg[i]]))
+    else:
+        print(f"## Wrote {f}")
+
+
+if args.camera_poses_only:
+    for i in range(len(filenames)):
         if is_raw_image(filenames[i]):
             # Split the filename into = d + f + e (directory, basename, extension)
             d,f = os.path.split(filenames[i])
             f,e = os.path.splitext(f)
-            filename_out = f"{args.outdir}/{f}.jpg"
+            output_line(f"{args.outdir}/{f}.jpg", i)
         else:
-            filename_out = filenames[i]
-    else:
+            output_line(filenames[i], i)
 
+else:
+
+    def process_one(i):
         filename_out = \
             process_image(filenames[i],
                           model_intrinsics,
@@ -978,8 +996,34 @@ for i in range(len(filenames)):
                           args.focal_length_nominal_mm,
                           args.pixels_per_mm)
 
-    if latlonalt_opkdeg is not None:
+        output_line(filename_out,i)
 
-        print(' '.join( [filename_out] + [str(x) for x in latlonalt_opkdeg[i]]))
+
+
+    if args.jobs <= 1:
+        for i in range(len(filenames)):
+            process_one(i)
+
     else:
-        print(f"## Wrote {filename_out}")
+        # Parallelize!
+
+        # weird business to handle weird signal handling in multiprocessing. I want
+        # things like the user hitting C-c to work properly. So I ignore SIGINT for the
+        # children. And I want the parent's blocking wait for results to respond to
+        # signals. Which means map_async() instead of map(), and wait(big number)
+        # instead of wait()
+        signal_handler_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal_handler_sigint)
+
+        pool = multiprocessing.Pool(args.jobs)
+        try:
+            mapresult = pool.map_async(process_one, range(len(filenames)))
+
+            # like wait(), but will barf if something goes wrong. I don't actually care
+            # about the results
+            mapresult.get(100000000)
+        except:
+            pool.terminate()
+
+        pool.close()
+        pool.join()

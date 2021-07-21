@@ -164,9 +164,13 @@ bool raw_convert( // out (width*height*3 bytes)
         xmin = grayworld(xmin);
         xmax = grayworld(xmax);
 
-        // I'm going to be computing ... / (xmax-xmin) a lot. Use libdivide to
-        // make that fast
-        struct libdivide_u16_t ctx16 = libdivide_u16_gen(xmax-xmin);
+        // I'm going to be computing ... / (xmax-xmin) a lot. Use higher-order
+        // multiplication to make that fast. I tried libdivide as well, but it
+        // was slower
+        //   y =
+        //   (x-xmin) * 255/(xmax-xmin) =
+        //   (x-xmin) * 255*(1 << (6*8))/(xmax-xmin) >> (6*8)
+        uint64_t k1 = (255ULL*(1ULL << (6*8)))/(uint64_t)(xmax-xmin);
 
         for(int i=0; i<height; i++)
             for(int j=0; j<width; j++)
@@ -175,11 +179,7 @@ bool raw_convert( // out (width*height*3 bytes)
                 if(     *x <= xmin) *x = 0;
                 else if(*x >= xmax) *x = 255;
                 else
-                {
-                    // I do this:
-                    //   (*x - xmin) / (xmax - xmin) * 255;
-                    *x = libdivide_u16_do(255*(*x-xmin), &ctx16);
-                }
+                    *x = (k1 * (uint64_t)(*x - xmin)) >> (6*8);
             }
     }
 

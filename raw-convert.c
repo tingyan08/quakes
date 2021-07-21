@@ -116,12 +116,15 @@ bool raw_convert( // out (width*height*3 bytes)
 
         // I will need to compute x * 128/mean, saturating the overflows, and
         // hopefully being fast. The denominator is always the same, so I use
-        // libdivide to optimize this division
-        struct libdivide_u64_t ctx64 = libdivide_u64_gen(sum);
-
+        // higher-order multiplication to do the division. I tried libdivide,
+        // but it wasn't as fast
+        //
+        // y = x*128/(sum/N)
+        //   = x*N*128*(1 << (3*8))/sum >> (3*8)
+        uint64_t k0 = (N*128ULL*(1ULL << (3*8)))/sum;
         uint8_t grayworld(uint8_t x)
         {
-            uint64_t y = libdivide_u64_do(N*128*(uint64_t)x, &ctx64);
+            uint64_t y = (k0 * (uint64_t)(x)) >> (3*8);
             if( y >= 255) return 255;
             return y;
         }

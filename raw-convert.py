@@ -980,11 +980,6 @@ for i in range(len(filenames)):
 
     if latlonalt_opkdeg is not None:
 
-        filename_latlonalt_opkdeg = \
-            nps.atleast_dims( nps.glue(np.array((filename_out,),),
-                                       latlonalt_opkdeg[i],
-                                       axis=-1),
-                              -2 )
-        np.savetxt(sys.stdout, filename_latlonalt_opkdeg, fmt="%s")
+        print(' '.join( [filename_out] + [str(x) for x in latlonalt_opkdeg[i]]))
     else:
         print(f"## Wrote {filename_out}")

@@ -6,7 +6,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include <libdivide.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <string.h>

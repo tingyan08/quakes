@@ -6,9 +6,6 @@ PROJECT_NAME := raw-convert
 ABI_VERSION  := 1
 TAIL_VERSION := 1
 
-# Local libdivide for now. If it works well, should install it
-CFLAGS += -I../libdivide
-
 LIB_SOURCES := raw-convert.c raw-convert-cpp.cc
 
 # The opencv people (or maybe the Debian people?) have renamed the opencv.pc

@@ -224,6 +224,7 @@ import mrcal
 import vnlog
 import cv2
 import shutil
+import _raw_convert
 
 
 if args.model is not None:
@@ -741,9 +742,15 @@ def process_image(filename,
     if is_raw_image(filename):
         # I convert the raw, write the .jpg to disk, and then update the exif of
         # the file on disk
-        image = read_and_convert_raw(filename,
-                                     *args.image_dims,
-                                     unbayer = True)
+        if 0:
+            image = raw_convert__prototype(filename,
+                                           *args.image_dims,
+                                           unbayer = True)
+
+        else:
+            image = _raw_convert.raw_convert(filename,
+                                             *args.image_dims,
+                                             saturate_recip = args.saturate_recip)
 
         filename = f"{args.outdir}/{f}.jpg"
 
@@ -790,8 +797,18 @@ def process_image(filename,
     return filename
 
 
-def read_and_convert_raw(filename, width, height,
-                         unbayer = True):
+def raw_convert__prototype(filename, width, height,
+                           unbayer = True):
+
+    r'''Read raw bits, convert to jpg
+
+    With some simple image processing along the way. This is the reference
+    implementation for _raw_convert.raw_convert(). The two functions do the same
+    thing, but _raw_convert.raw_convert() is written in C, with several
+    optimizations in mind, so it is much faster. THIS function is good for
+    testing and prototyping
+
+    '''
 
     datasize_expected = width*height
 

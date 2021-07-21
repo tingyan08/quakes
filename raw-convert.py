@@ -178,18 +178,18 @@ def parse_args():
                         input images. This tool may overwrite some files, but it
                         will NEVER overwrite its input''')
 
-    parser.add_argument('--saturate',
+    parser.add_argument('--saturate-recip',
                         type    = float,
-                        default = 1e-5,
+                        default = 65536,
                         help='''We apply a histogram stretch when processing the
                         raw images. To produce visually-pleasing results, we
                         sacrifice a small amount of the histogram at the low and
                         high ends. This produces good contrast in the bulk of
                         the image. The sacrificial amount is specified by this
-                        argument. For instance "--saturate 0.01" means the
-                        darkest 1%% of the pixels end up at 0, and the lightest
-                        1%% end up at 255. In practice, a much smaller value than
-                        0.01 is desired''')
+                        argument. For instance "--saturate-recip 100" means the
+                        darkest 1/100th of the pixels end up at 0, and the
+                        brightest 1/100th end up at 255. In practice, a much
+                        bigger value than 100 is desired. We default to 65536''')
 
     parser.add_argument('--camera-poses-only',
                         action = 'store_true',
@@ -840,8 +840,8 @@ def read_and_convert_raw(filename, width, height,
                 # I linearly stretch the intensities such that the histogram
                 # covers my full range, sacrificing some stragglers at the low
                 # and high ends
-                xmin = np.percentile(xr,       args.saturate*100)
-                xmax = np.percentile(xr, 100 - args.saturate*100)
+                xmin = np.percentile(xr,       100./args.saturate_recip)
+                xmax = np.percentile(xr, 100 - 100./args.saturate_recip)
 
                 np.clip(xr, xmin, xmax, out=xr)
                 cv2.normalize(src = xr,

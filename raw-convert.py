@@ -684,8 +684,9 @@ def decompose_pose(Rt_world_cam):
 
 
 def process_image(filename,
-                  # Anything that is None is not set
 
+                  # Anything that is None is not set
+                  latlonalt_opkdeg        = None,
                   model_intrinsics        = None,
                   body_manufacturer       = None,
                   body_model              = None,
@@ -699,6 +700,16 @@ def process_image(filename,
         # It is completely ridiculous that I have to do this
         numerator = int(x*denominator)
         return fractions.Fraction(numerator,denominator)
+    def GPSCoordinate(x):
+        # It is completely ridiculous that I have to do all this
+        ax = abs(x)
+        d  = int(ax)
+        m  = int(60*(ax - d))
+        s  = 3600*(ax - d) - 60*m
+        return \
+            [ fractions.Fraction(d,1),
+              fractions.Fraction(m,1),
+              rational(s) ]
 
 
     tags = dict()
@@ -742,6 +753,20 @@ def process_image(filename,
     if lens_serial_number      is not None: tags['Exif.Photo.LensSerialNumber'] = lens_serial_number
     if focal_length_nominal_mm is not None: tags['Exif.Photo.FocalLength']      = rational(focal_length_nominal_mm)
 
+
+    if latlonalt_opkdeg is not None:
+        lat,lon,alt = latlonalt_opkdeg[:3]
+
+        tags['Exif.GPSInfo.GPSLatitude']     = GPSCoordinate(abs(lat))
+        tags['Exif.GPSInfo.GPSLongitude']    = GPSCoordinate(abs(lon))
+        tags['Exif.GPSInfo.GPSAltitude']     = rational(alt)
+        tags['Exif.GPSInfo.GPSLatitudeRef']  = 'N' if lat >= 0 else 'S'
+        tags['Exif.GPSInfo.GPSLongitudeRef'] = 'E' if lon >= 0 else 'W'
+        tags['Exif.GPSInfo.GPSAltitudeRef']  = '0' # above sea level
+
+        # Indicate very poor GPS accuracy
+        tags['Xmp.Camera.GPSXYAccuracy']     = "1000"
+        tags['Xmp.Camera.GPSZAccuracy']      = "1000"
 
 
     # Split the filename into = d + f + e (directory, basename, extension)
@@ -987,6 +1012,7 @@ else:
     def process_one(i):
         filename_out = \
             process_image(filenames[i],
+                          latlonalt_opkdeg[i] if latlonalt_opkdeg is not None else None,
                           model_intrinsics,
                           args.body_manufacturer,
                           args.body_model,

@@ -59,7 +59,7 @@ bool raw_convert( // out (width*height*3 bytes)
         goto done;
     }
 
-    raw_bits = mmap(NULL, datasize_expected,
+    raw_bits = mmap(NULL, st.st_size,
                     PROT_READ, MAP_SHARED,
                     fd, 0);
     if(raw_bits == MAP_FAILED)

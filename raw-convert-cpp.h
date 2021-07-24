@@ -13,3 +13,5 @@ bool debayer( // out
 // Efficiently compute the ith sorted element of the given buffer. The buffer is
 // reordered
 uint8_t ith_element( uint8_t* buf, int N, int i );
+
+void opencv_disable_threading(void);

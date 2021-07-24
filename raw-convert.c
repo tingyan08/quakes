@@ -25,6 +25,13 @@ bool raw_convert( // out (width*height*3 bytes)
 {
     bool result = false;
 
+    // I'm going to parallelize this thing on a higher level, so I'd like these
+    // INNER calls to run sequentially. I don't want the user to ask 20-way
+    // parallelization, then get 20 parallel raw_convert() calls running, and
+    // then have some internal opencv something spawn 20 children each.
+    // 20*20=400 threads is not helpful
+    opencv_disable_threading();
+
     struct stat st;
     if(0 != stat(filename_raw, &st))
     {

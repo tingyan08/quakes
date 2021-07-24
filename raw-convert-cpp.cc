@@ -29,3 +29,10 @@ uint8_t ith_element( uint8_t* buf, int N, int i )
     std::nth_element(&buf[0], &buf[i], &buf[N]);
     return buf[i];
 }
+
+extern "C"
+void opencv_disable_threading(void)
+{
+    cv::setNumThreads(0);
+}
+

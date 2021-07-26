@@ -179,7 +179,7 @@ def parse_args():
                         will NEVER overwrite its input''')
 
     parser.add_argument('--saturate-recip',
-                        type    = float,
+                        type    = int,
                         default = 65536,
                         help='''We apply a histogram stretch when processing the
                         raw images. To produce visually-pleasing results, we

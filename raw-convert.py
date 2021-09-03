@@ -92,6 +92,14 @@ def parse_args():
                         help=r'''Arbitrary string to be written into the
                         'Exif.Photo.LensSerialNumber' tag. If omitted, we will
                         not write this tag''')
+    parser.add_argument('--serial-number',
+                        type = str,
+                        help=r'''Arbitrary additional string to be written into
+                        the "lens model". This primarily exists for pix4d's
+                        benefit. Pix4d displays the body and lens models, but no
+                        serial numbers. So this is a hack to make the serial
+                        number show up in pix4d. If omitted, we will not write
+                        this tag''')
     parser.add_argument('--focal-length-nominal-mm',
                         type = float,
                         help=r'''Arbitrary value to be written into the
@@ -693,6 +701,7 @@ def process_image(filename,
                   lens_model              = None,
                   body_serial_number      = None,
                   lens_serial_number      = None,
+                  serial_number           = None,
                   focal_length_nominal_mm = None,
                   pixels_per_mm           = None):
 
@@ -745,7 +754,6 @@ def process_image(filename,
             tags['Exif.Photo.FocalPlaneXResolution']  = rational(pixels_per_mm)
             tags['Exif.Photo.FocalPlaneYResolution']  = rational(pixels_per_mm)
 
-
     if body_manufacturer       is not None: tags['Exif.Image.Make']             = body_manufacturer
     if body_model              is not None: tags['Exif.Image.Model']            = body_model
     if lens_model              is not None: tags['Exif.Photo.LensModel']        = lens_model
@@ -753,6 +761,11 @@ def process_image(filename,
     if lens_serial_number      is not None: tags['Exif.Photo.LensSerialNumber'] = lens_serial_number
     if focal_length_nominal_mm is not None: tags['Exif.Photo.FocalLength']      = rational(focal_length_nominal_mm)
 
+    if serial_number is not None:
+        if 'Exif.Photo.LensModel' not in tags:
+            tags['Exif.Photo.LensModel'] = serial_number
+        else:
+            tags['Exif.Photo.LensModel'] += ': ' + serial_number
 
     if latlonalt_opkdeg is not None:
         lat,lon,alt = latlonalt_opkdeg[:3]
@@ -1019,6 +1032,7 @@ else:
                           args.lens_model,
                           args.body_serial_number,
                           args.lens_serial_number,
+                          args.serial_number,
                           args.focal_length_nominal_mm,
                           args.pixels_per_mm)
 

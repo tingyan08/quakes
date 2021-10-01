@@ -213,6 +213,11 @@ def parse_args():
                         like Make, except you're required to explicitly specify
                         a job count. If omitted, no parallelization happens''')
 
+    parser.add_argument('--prototype-raw-converter',
+                        action='store_true',
+                        help='''Uses the slow written-in-python implementation
+                        of the raw converter. For debugging''')
+
     parser.add_argument('images',
                         type=str,
                         nargs='+',
@@ -241,7 +246,9 @@ import cv2
 import shutil
 import multiprocessing
 import signal
-import _raw_convert
+
+if not args.prototype_raw_converter:
+    import _raw_convert
 
 
 if args.model is not None:
@@ -789,7 +796,7 @@ def process_image(filename,
     if is_raw_image(filename):
         # I convert the raw, write the .jpg to disk, and then update the exif of
         # the file on disk
-        if 0:
+        if args.prototype_raw_converter:
             image = raw_convert__prototype(filename,
                                            *args.image_dims,
                                            unbayer = True)

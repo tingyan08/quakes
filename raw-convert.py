@@ -1,15 +1,14 @@
 #!/usr/bin/python3
 
-r'''Convert UAVSAR images from raw bits to jpg, and apply the EXIF metadata
+r'''Prepate QUAKES data for Pix4D
 
 This is the pre-processing tool used to convert the data we collect into a form
 that's ingestable by Pix4D. The inputs are:
 
 - The images. These may be something standard (like .jpg) or "raw" data. Here
-  "raw" means some arbitrary data we ignore, followed by the imager output, 8
-  bits per pixel. The output is debayered to produce color data, and some image
-  processing is applied to nice-ify the output. This treatment handles arbitrary
-  headers in the "raw" data; .pgm works
+  "raw" means some opaque header we ignore, followed by the imager output, 8
+  bits per pixel. The output may be debayered to produce color data, and some image
+  processing may be applied to nice-ify the output
 
 - INS data from the airplane. A .vnl table of plane poses, synced with the frame
   numbers in the captured images. This is optional. If omitted, no pose data is
@@ -21,11 +20,11 @@ that's ingestable by Pix4D. The inputs are:
 - Plane-camera transform. These are represented by 3 euler angles. If omitted,
   no pose information is written into the EXIF in the output
 
-- geometric correction. A full 6DOF transform applied to the camera poses, to
+- Geometric correction. A full 6DOF transform applied to the camera poses, to
   compensate for errors in the other geometric parameters. If omitted, no
   correction is applied.
 
-- camera models: a mrcal model used to provide the intrinsics. If given, these
+- Camera models: a mrcal model used to provide the intrinsics. If given, these
   are written into the EXIF of the output
 
 '''
@@ -221,10 +220,11 @@ def parse_args():
     parser.add_argument('images',
                         type=str,
                         nargs='+',
-                        help='''Globs containing images we're converting. jpg
-                        and png and tiff images are assumed to already be
-                        usable. Everything else is run through a raw
-                        converter''')
+                        help='''Globs containing images we're converting.
+                        Recognized image formats indicate images that are
+                        already usable. Everything else is run through a raw
+                        converter. The layout of the globs is not considered:
+                        all the images are processed together''')
 
     args = parser.parse_args()
     return args
@@ -310,8 +310,6 @@ before either of those
         proj_context['ne0'] = np.array((n,e))
     else:
         proj_context['ne0'] = (0,0)
-
-
 def ne_from_latlon(latlon, get_gradients=False):
     '''Compute translated UTM (northing,easting) from a lat,lon pair
 
@@ -353,8 +351,6 @@ be done before calling this function
     dne_dlatlon[...,1,1] = den_dlon[...,0] / dlatlon
 
     return ne, dne_dlatlon
-
-
 def latlon_from_ne(ne):
     '''Compute lat,lon from a translated UTM (northing,easting)
 
@@ -375,12 +371,11 @@ be done before calling this function
                      nps.dummy(np.array(lon),-1),
                      axis=-1 )
 
-
-def R_world_cam__from_pix4d_rpy_plane(rpy_plane,
-                                      camera_roll_deg       = 0,
-                                      camera_yaw_deg        = 0,
-                                      camera_pitch_deg      = 0,
-                                      camera_pitch_then_yaw = False):
+def compute__R_world_cam(rpy__plane,
+                         camera_roll_deg       = 0,
+                         camera_yaw_deg        = 0,
+                         camera_pitch_deg      = 0,
+                         camera_pitch_then_yaw = False):
     r'''Computes a rotation from pix4d-style euler angles
 
 There are many interpretations of "roll,pitch,yaw". This function follows the
@@ -396,15 +391,12 @@ server:
 The "world" frame is "north,east,down"
 The "body"  frame (from that pdf) is "forward,right,down"
 
-I make an additional transformation to use mrcal's camera coordinate
-system, which is (right,down,forward).
-
 We return a rotation to map mrcal-style camera coords (right,down,forward) to
 world coords (north,east,down)
 
     '''
 
-    r,p,y = nps.transpose(rpy_plane)
+    r,p,y = nps.transpose(rpy__plane)
     sy,cy = np.sin(y),np.cos(y)
     sp,cp = np.sin(p),np.cos(p)
     sr,cr = np.sin(r),np.cos(r)
@@ -548,30 +540,27 @@ world coords (north,east,down)
 
     return nps.matmult(R_world_body, nps.transpose(R_cam_body))
 
-
-def Rt_world_cam__compute(rpydeg_latlonalt,
+def compute__Rt_world_cam(rpy_latlonalt__plane,
                           camera_roll_deg       = 0,
                           camera_yaw_deg        = 0,
                           camera_pitch_deg      = 0,
                           camera_pitch_then_yaw = False):
 
-    r'''Computes a transformation from EXIF metadata
+    r'''Computes the world <-> cam transformation
 
 Returns a transformation (in an (Ncameras,4,3) array) to map mrcal-style camera
 coords (right,down,forward) to world coords (north,east,down).
 
     '''
 
-    rpy = rpydeg_latlonalt[:,:3] * np.pi/180.
-
     # shape (...,3,3)
-    R_world_cam = R_world_cam__from_pix4d_rpy_plane(rpy,
-                                                    camera_roll_deg       = camera_roll_deg,
-                                                    camera_yaw_deg        = camera_yaw_deg,
-                                                    camera_pitch_deg      = camera_pitch_deg,
-                                                    camera_pitch_then_yaw = camera_pitch_then_yaw)
+    R_world_cam = compute_compute__R_world_cam(rpy_latlonalt__plane[:,:3],
+                                               camera_roll_deg       = camera_roll_deg,
+                                               camera_yaw_deg        = camera_yaw_deg,
+                                               camera_pitch_deg      = camera_pitch_deg,
+                                               camera_pitch_then_yaw = camera_pitch_then_yaw)
 
-    lat,lon,alt = nps.transpose(rpydeg_latlonalt[:, 3:6])
+    lat,lon,alt = nps.transpose(rpy_latlonalt__plane[:, 3:6])
 
     # shape (...,1,3)
     ned = nps.glue( # shape (...,1,2)
@@ -588,8 +577,14 @@ coords (right,down,forward) to world coords (north,east,down).
                             axis = -2)
     return Rt_world_cam
 
-
 def parse_ins_vnl_plane(ins_vnl_plane, image0 = 0, Nimages = None, filenames = None):
+
+    r'''Ingests an INS vnl generated with Chris Assad's tools
+
+I've never seen these tools. This was used for the 2021/06 dataset, and likely
+won't be used again
+
+    '''
 
     x,list_keys,dict_key_index = vnlog.slurp(ins_vnl_plane)
 
@@ -639,13 +634,9 @@ def parse_ins_vnl_plane(ins_vnl_plane, image0 = 0, Nimages = None, filenames = N
 
     return rpydeg_latlonalt
 
-#################################################
+def compute__latlonalt_opkdeg(Rt_world_cam):
 
-
-
-
-
-def decompose_pose(Rt_world_cam):
+    r'''Produce pix4d-style poses'''
 
     # "world" is (N,E,down)
 
@@ -696,7 +687,6 @@ def decompose_pose(Rt_world_cam):
     latlonalt_opkdeg[..., 4] = p*180./np.pi
     latlonalt_opkdeg[..., 5] = k*180./np.pi
     return latlonalt_opkdeg
-
 
 def process_image(filename,
 
@@ -850,7 +840,6 @@ def process_image(filename,
 
     return filename
 
-
 def raw_convert__prototype(filename, width, height,
                            unbayer = True):
 
@@ -994,13 +983,12 @@ def raw_convert__prototype(filename, width, height,
 
     return image
 
-
 def is_raw_image(f):
     try:
         pattern = is_raw_image.pattern
     except:
         pattern = is_raw_image.pattern = \
-            re.compile('.*\.(jpg|jpeg|png|tif|tiff)$', re.I)
+            re.compile('.*\.(jpg|jpeg|png|tif|tiff|pgm)$', re.I)
     return not re.match(pattern, f)
 
 
@@ -1012,21 +1000,22 @@ if args.model is not None:
 else:
     model_intrinsics = None
 
-expanded_globs = [glob.glob(os.path.expanduser(g)) for g in args.images]
-for i in range(len(expanded_globs)):
-    if len(expanded_globs[i]) == 0:
+images__expanded_globs = [glob.glob(os.path.expanduser(g)) for g in args.images]
+for i in range(len(images__expanded_globs)):
+    if len(images__expanded_globs[i]) == 0:
         raise Exception(f"Glob {args.images[i]} matched nothing")
-filenames = sorted( [f for g in expanded_globs for f in g] )
-filenames = filenames[args.image0:]
+# flatten and sort
+images_filenames = sorted( [f for g in images__expanded_globs for f in g] )
+images_filenames = images_filenames[args.image0:]
 if args.Nimages is not None:
-    filenames = filenames[:args.Nimages]
+    images_filenames = images_filenames[:args.Nimages]
 
-if args.image_dims is None and any([is_raw_image(f) for f in filenames]):
-    r0 = [f for f in filenames if is_raw_image(f)][0]
+if args.image_dims is None and any([is_raw_image(f) for f in images_filenames]):
+    r0 = [f for f in images_filenames if is_raw_image(f)][0]
     raise Exception(f"Some images are raw, but --image-dims not given. First raw image: {r0}")
 
-for f in filenames:
-    d0 = os.path.realpath( os.path.abspath( args.outdir ))
+d0 = os.path.realpath( os.path.abspath( args.outdir ))
+for f in images_filenames:
     d1 = os.path.realpath( os.path.abspath( os.path.split(f)[0] ))
     if d0 == d1:
         raise Exception("--outdir may not be a path that contains any of the input files. I want to make sure to never overwrite the input")
@@ -1039,18 +1028,19 @@ if args.ins_vnl_plane is not None:
 
     print("# filename latitude longitude altitude_m omega_deg phi_deg kappa_deg")
 
-    rpydeg_latlonalt__plane = \
+    rpy_latlonalt__plane = \
         parse_ins_vnl_plane(args.ins_vnl_plane,
                             args.image0,
                             args.Nimages,
-                            filenames)
+                            images_filenames)
+    rpy_latlonalt__plane[:,:3] *= np.pi/180.
 
     proj_context__init( # lat,lon
-                        (rpydeg_latlonalt__plane[0,3], rpydeg_latlonalt__plane[0,4] ))
+                        (rpy_latlonalt__plane[0,3], rpy_latlonalt__plane[0,4] ))
 
     # shape (Ncam, 4,3)
     Rt_world_cam = \
-        Rt_world_cam__compute(rpydeg_latlonalt__plane,
+        compute__Rt_world_cam(rpy_latlonalt__plane,
                               camera_roll_deg       = args.camera_roll_deg,
                               camera_yaw_deg        = args.camera_yaw_deg,
                               camera_pitch_deg      = args.camera_pitch_deg,
@@ -1064,7 +1054,7 @@ if args.ins_vnl_plane is not None:
         Rt_world_cam = mrcal.compose_Rt( Rt_world_cam,
                                          mrcal.invert_Rt(mrcal.Rt_from_rt(np.array(args.rt_cam_new_cam_old))) )
 
-    latlonalt_opkdeg = decompose_pose(Rt_world_cam)
+    latlonalt_opkdeg = compute__latlonalt_opkdeg(Rt_world_cam)
 
 else:
     latlonalt_opkdeg = None
@@ -1081,59 +1071,59 @@ def output_line(f,i):
 
 
 if args.camera_poses_only:
-    for i in range(len(filenames)):
-        if is_raw_image(filenames[i]):
+    for i in range(len(images_filenames)):
+        if is_raw_image(images_filenames[i]):
             # Split the filename into = d + f + e (directory, basename, extension)
-            d,f = os.path.split(filenames[i])
+            d,f = os.path.split(images_filenames[i])
             f,e = os.path.splitext(f)
             output_line(f"{args.outdir}/{f}.jpg", i)
         else:
-            output_line(filenames[i], i)
+            output_line(images_filenames[i], i)
+    sys.exit(0)
+
+
+def process_one(i):
+    filename_out = \
+        process_image(images_filenames[i],
+                      latlonalt_opkdeg[i] if latlonalt_opkdeg is not None else None,
+                      model_intrinsics,
+                      args.body_manufacturer,
+                      args.body_model,
+                      args.lens_model,
+                      args.body_serial_number,
+                      args.lens_serial_number,
+                      args.serial_number,
+                      args.focal_length_nominal_mm,
+                      args.pixels_per_mm)
+
+    output_line(filename_out,i)
+
+
+
+if args.jobs <= 1:
+    for i in range(len(images_filenames)):
+        process_one(i)
 
 else:
+    # Parallelize!
 
-    def process_one(i):
-        filename_out = \
-            process_image(filenames[i],
-                          latlonalt_opkdeg[i] if latlonalt_opkdeg is not None else None,
-                          model_intrinsics,
-                          args.body_manufacturer,
-                          args.body_model,
-                          args.lens_model,
-                          args.body_serial_number,
-                          args.lens_serial_number,
-                          args.serial_number,
-                          args.focal_length_nominal_mm,
-                          args.pixels_per_mm)
+    # weird business to handle weird signal handling in multiprocessing. I want
+    # things like the user hitting C-c to work properly. So I ignore SIGINT for the
+    # children. And I want the parent's blocking wait for results to respond to
+    # signals. Which means map_async() instead of map(), and wait(big number)
+    # instead of wait()
+    signal_handler_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, signal_handler_sigint)
 
-        output_line(filename_out,i)
+    pool = multiprocessing.Pool(args.jobs)
+    try:
+        mapresult = pool.map_async(process_one, range(len(images_filenames)))
 
+        # like wait(), but will barf if something goes wrong. I don't actually care
+        # about the results
+        mapresult.get(100000000)
+    except:
+        pool.terminate()
 
-
-    if args.jobs <= 1:
-        for i in range(len(filenames)):
-            process_one(i)
-
-    else:
-        # Parallelize!
-
-        # weird business to handle weird signal handling in multiprocessing. I want
-        # things like the user hitting C-c to work properly. So I ignore SIGINT for the
-        # children. And I want the parent's blocking wait for results to respond to
-        # signals. Which means map_async() instead of map(), and wait(big number)
-        # instead of wait()
-        signal_handler_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
-        signal.signal(signal.SIGINT, signal_handler_sigint)
-
-        pool = multiprocessing.Pool(args.jobs)
-        try:
-            mapresult = pool.map_async(process_one, range(len(filenames)))
-
-            # like wait(), but will barf if something goes wrong. I don't actually care
-            # about the results
-            mapresult.get(100000000)
-        except:
-            pool.terminate()
-
-        pool.close()
-        pool.join()
+    pool.close()
+    pool.join()

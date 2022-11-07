@@ -125,6 +125,6 @@ if 0:
     joined['lat_lon_alt_rpy'] = images_i_lat_lon_alt_rpy[:,1:]
 
 # So I just loop it. It is SLOW, but I only need to do it once
-print("# time serialnumber filename latitude longitude altitude roll pitch yaw")
+print("# time serialnumber filename latitude longitude altitude_ft roll_deg pitch_deg heading_deg")
 for i in range(len(images_t)):
     print(f"{images_t[i]} {images_serialnumber[i]} {images_filename[i].decode()} {' '.join(str(x) for x in images_i_lat_lon_alt_rpy[i,1:])}")

@@ -854,7 +854,11 @@ def process_image(filename,
 def raw_convert__prototype(filename, width, height,
                            unbayer = True):
 
-    r'''Read raw bits, convert to jpg
+    r'''Written-in-python converter for experiments
+
+
+    This is meant for testing improved processing techniques. Experiments go
+    here.
 
     With some simple image processing along the way. This is the reference
     implementation for _raw_convert.raw_convert(). The two functions do the same
@@ -897,13 +901,47 @@ def raw_convert__prototype(filename, width, height,
                 # unsigned values
                 x  = image[..., i]
                 xr = x.ravel()
+                if 1:
+                    # original path
+                    cv2.normalize(src       = xr,
+                                  dst       = xr,
+                                  # *len() to make norm_l1 = mean
+                                  alpha     = 128*len(xr),
+                                  norm_type = cv2.NORM_L1,
+                                  dtype     = cv2.CV_8U)
 
-                cv2.normalize(src       = xr,
-                              dst       = xr,
-                              # *len() to make norm_l1 = mean
-                              alpha     = 128*len(xr),
-                              norm_type = cv2.NORM_L1,
-                              dtype     = cv2.CV_8U)
+                else:
+
+                    # gray world using a better estimate of the mean (not
+                    # confused by the saturations)
+
+                    import gnuplotlib as gp
+                    # gp.plot(xr, histogram=True, binwidth = 1, title = f'channel {i}', hardcopy=f"/tmp/channel{i}.png" )
+
+                    print(f"is >= 250: {np.count_nonzero(xr >= 250)}")
+                    print(f"is 0:   {np.count_nonzero(xr == 0)}")
+                    i_saturated = np.logical_or((xr >= 250), (xr == 0))
+                    print(f"is saturated: {np.count_nonzero(i_saturated)}")
+
+
+                    print(f"minmax at start: {np.min(xr)} {np.max(xr)}")
+
+                    q_big = 0.1
+                    xmin = np.percentile(xr,       q_big)
+                    xmax = np.percentile(xr, 100 - q_big)
+
+                    xr_center = xr[ (xr >= xmin) * (xr <= xmax) ]
+                    m = np.mean(xr)
+                    print(f"mean(xr): {m}")
+                    scale = 128. / m
+                    xr = np.clip(xr.astype(float) * scale, 0, 255).astype(np.uint8)
+
+                    print(f"minmax after grayworld: {np.min(xr)} {np.max(xr)}")
+
+                    # if i == 1:
+                    #     gp.plot(xr, histogram=True, binwidth = 1, title = f'channel {i} after grayworld',
+                    #             hardcopy=f"/tmp/green-after-grayworld.pdf" )
+
 
                 # The input was written back to the array. The mean was scaled
                 # to 128. Grayworld is done
@@ -911,8 +949,33 @@ def raw_convert__prototype(filename, width, height,
                 # I linearly stretch the intensities such that the histogram
                 # covers my full range, sacrificing some stragglers at the low
                 # and high ends
-                xmin = np.percentile(xr,       100./args.saturate_recip)
-                xmax = np.percentile(xr, 100 - 100./args.saturate_recip)
+                if 0:
+                    # original path
+                    xmin = np.percentile(xr,       100./args.saturate_recip)
+                    xmax = np.percentile(xr, 100 - 100./args.saturate_recip)
+                elif 0:
+                    # using only the non-saturated pixels for the statistics
+                    xr_not_saturated = xr[~i_saturated]
+                    xmin = np.percentile(xr_not_saturated,       100./args.saturate_recip)
+                    xmax = np.percentile(xr_not_saturated, 100 - 100./args.saturate_recip)
+
+                else:
+                    # Smarter logic. +- 4stdev for the whole range
+                    q_big = 0.1
+                    xmin = np.percentile(xr,       q_big)
+                    xmax = np.percentile(xr, 100 - q_big)
+
+                    xr_center = xr[ (xr >= xmin) * (xr <= xmax) ]
+
+                    # did gray-world, so the mean should be 128
+                    m = 128 # np.mean(xr_center)
+                    s = np.std( xr_center)
+
+                    xmin = max(m - 3*s, 0)
+                    xmax = min(m + 3*s, 255)
+
+
+                # print(f"minmax in histogram stretch: {xmin} {xmax}")
 
                 np.clip(xr, xmin, xmax, out=xr)
                 cv2.normalize(src = xr,

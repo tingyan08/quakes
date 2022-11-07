@@ -1,0 +1,130 @@
+#!/usr/bin/python3
+
+
+r'''Cross-reference INS data and image-capture metadata
+
+SYNOPSIS
+
+  $ reference-images-ins images.vnl ins-all.vnl > images-referenced.vnl
+  ...
+
+DESCRIPTION
+
+This tool takes in an log of image metadata (such as
+https://aargh.jpl.nasa.gov/proj/quakes/2022-10--quakes-flight/images.vnl) and
+cross references it with a log of INS measurements (such as
+https://aargh.jpl.nasa.gov/proj/quakes/2022-10--quakes-flight/QUAKES_202210--INS/vnl/all.vnl).
+The result is output on standard out: a log of images extended with their
+respective INS measurements
+
+'''
+
+
+import sys
+import argparse
+import re
+import os
+
+def parse_args():
+
+    parser = \
+        argparse.ArgumentParser(description = __doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    parser.add_argument('--use-ins-lag',
+                        type=float,
+                        default = 0.0,
+                        help='''If given, I apply a given INS-camera time offset, in seconds''')
+
+    parser.add_argument('images',
+                        type=str,
+                        help='''The image metadata''')
+    parser.add_argument('inslog',
+                        type=str,
+                        help='''The INS readings''')
+
+    return parser.parse_args()
+
+args = parse_args()
+
+
+# arg-parsing is done before the imports so that --help works without building
+# stuff, so that I can generate the manpages and README
+
+import numpy as np
+import numpysane as nps
+import scipy.interpolate
+import mrcal
+import time
+
+print("## Generated on {} with   {}". \
+      format(time.strftime("%Y-%m-%d %H:%M:%S"),
+             ' '.join(mrcal.shellquote(s) for s in sys.argv)))
+
+try:
+    ins_t_lat_lon_alt_rpy = np.loadtxt(args.inslog)
+except:
+    print(f"## INS log '{args.inslog}' could not be read")
+    sys.exit(1)
+
+ins_interpolate_func = \
+    scipy.interpolate.interp1d( ins_t_lat_lon_alt_rpy[:,0] - args.use_ins_lag,
+                                # prepend index
+                                nps.glue(nps.transpose(np.arange(len(ins_t_lat_lon_alt_rpy))),
+                                         ins_t_lat_lon_alt_rpy[:,1:],
+                                         axis = -1),
+                                axis=-2,
+                                bounds_error = False,
+                                assume_sorted = True,
+                                copy = False)
+
+images_t_serialnumber_filename = \
+    np.loadtxt(args.images,
+               dtype=[('time',         float),
+                      ('serialnumber', np.uint32),
+                      ('filename',     '|S128')])
+
+images_t            = images_t_serialnumber_filename['time']
+images_serialnumber = images_t_serialnumber_filename['serialnumber']
+images_filename     = images_t_serialnumber_filename['filename']
+
+images_i_lat_lon_alt_rpy = ins_interpolate_func(images_t)
+
+# I find the INS measurements on either side, and only accept those interpolated
+# measurements where the source INS data wasn't too far off
+images_i = images_i_lat_lon_alt_rpy[:,0]
+# round down and up
+i0 = np.floor(images_i).astype(int)
+i1 = np.ceil (images_i).astype(int)
+
+t_err0 = images_t - (ins_t_lat_lon_alt_rpy[i0, 0] - args.use_ins_lag)
+t_err1 = (ins_t_lat_lon_alt_rpy[i1, 0] - args.use_ins_lag) - images_t
+
+mask_good = \
+    (t_err0 >= 0)   * \
+    (t_err1 >= 0)   * \
+    (t_err0 <= 0.5) * \
+    (t_err1 <= 0.5)
+
+images_t                       = images_t                       [mask_good]
+images_serialnumber            = images_serialnumber            [mask_good]
+images_filename                = images_filename                [mask_good]
+images_t_serialnumber_filename = images_t_serialnumber_filename [mask_good]
+images_i_lat_lon_alt_rpy       = images_i_lat_lon_alt_rpy       [mask_good]
+
+# I want to savetxt, but it doesn't work. Prep code:
+if 0:
+    joined = np.empty((len(images_i_lat_lon_alt_rpy),),
+                      dtype=[('time',         float),
+                             ('serialnumber', np.uint32),
+                             ('filename',     '|S128'),
+                             ('lat_lon_alt_rpy', '6float')])
+    joined['time']            = images_t
+    joined['serialnumber']    = images_serialnumber
+    joined['filename']        = images_filename
+    joined['lat_lon_alt_rpy'] = images_i_lat_lon_alt_rpy[:,1:]
+
+# So I just loop it. It is SLOW, but I only need to do it once
+print("# time serialnumber filename latitude longitude altitude roll pitch yaw")
+for i in range(len(images_t)):
+    print(f"{images_t[i]} {images_serialnumber[i]} {images_filename[i].decode()} {' '.join(str(x) for x in images_i_lat_lon_alt_rpy[i,1:])}")

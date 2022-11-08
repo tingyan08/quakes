@@ -62,15 +62,31 @@ def parse_args():
                         required=True,
                         help='''The distance overlap between successive chunks,
                         in km. Required''')
+    parser.add_argument('--input',
+                        type=str,
+                        help='''An input vnlog of cross-referenced images
+                        metadata. Optional. If omitted, we read stdin''')
 
     return parser.parse_args()
 
 args = parse_args()
 
-if sys.stdin.isatty():
-    print("Input should be passed on STDIN",
-          file=sys.stderr)
-    sys.exit(1)
+if args.input is None:
+
+    f = sys.stdin
+
+    if sys.stdin.isatty():
+        print("--input is empty, so we read STDIN, but it's a TTY. Please redirect the input to STDIN or pass --input",
+              file=sys.stderr)
+        sys.exit(1)
+else:
+    try:
+        f = open(args.input, 'r')
+    except:
+        print(f"Couldn't read '{sys.input}'",
+              file=sys.stderr)
+        sys.exit(1)
+
 
 # arg-parsing is done before the imports so that --help works without building
 # stuff, so that I can generate the manpages and README
@@ -84,7 +100,7 @@ from pyproj import Geod
 
 
 time_sn_filename_lat_lon_alt_rpy = \
-    np.loadtxt(sys.stdin,
+    np.loadtxt(f,
                dtype=[('time',            float),
                       ('serialnumber',    np.uint32),
                       ('filename',        '|S128'),

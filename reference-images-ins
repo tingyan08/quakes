@@ -97,14 +97,40 @@ images_i = images_i_lat_lon_alt_rpy[:,0]
 i0 = np.floor(images_i).astype(int)
 i1 = np.ceil (images_i).astype(int)
 
-t_err0 = images_t - (ins_t_lat_lon_alt_rpy[i0, 0] - args.use_ins_lag)
-t_err1 = (ins_t_lat_lon_alt_rpy[i1, 0] - args.use_ins_lag) - images_t
+# The time at either end of the interpolated point
+t0_interpolated = ins_t_lat_lon_alt_rpy[i0, 0] - args.use_ins_lag
+t1_interpolated = ins_t_lat_lon_alt_rpy[i1, 0] - args.use_ins_lag
+t_err0 = images_t - t0_interpolated
+t_err1 = t1_interpolated - images_t
 
 mask_good = \
     (t_err0 >= 0)   * \
     (t_err1 >= 0)   * \
     (t_err0 <= 0.5) * \
     (t_err1 <= 0.5)
+
+
+# I need to look at yaw interpolation: averaging -179.9999 and 179.9999 to
+# produce 0 is NOT the right thing to do. The broken ones have yaw1 ~ 180, yaw0
+# ~ -180 (or backwards), so I'll have the interpolated yaw ~ 180 (or -180),
+# where it should be 0. The computation I have is (1-q)*yaw0 + q*yaw1 where q is
+# in [0,1]
+#
+# if yaw1<0: we should add 360*q
+# else:      we should add 360*(1-q) = 360-360*q
+yaw_bound_left  = ins_t_lat_lon_alt_rpy[i0, 6]
+yaw_bound_right = ins_t_lat_lon_alt_rpy[i1, 6]
+
+if np.max(np.abs(ins_t_lat_lon_alt_rpy[:,6])) > 180:
+    raise Exception("I'm assuming that yaw is in [-180,180]")
+i_yaw_wrapped = np.abs(yaw_bound_right - yaw_bound_left) > 180
+
+q = images_i - i0
+i = i_yaw_wrapped * (yaw_bound_right<0)
+images_i_lat_lon_alt_rpy[i, 6] += 360*q[i]
+i = i_yaw_wrapped * (yaw_bound_left<0 )
+images_i_lat_lon_alt_rpy[i, 6] += 360*(1 - q[i])
+
 
 images_t                       = images_t                       [mask_good]
 images_serialnumber            = images_serialnumber            [mask_good]

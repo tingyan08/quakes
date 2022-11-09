@@ -676,14 +676,19 @@ if 1:
                                                 args.camera_roll_deg,
                                                 args.camera_yaw_deg,
                                                 args.camera_pitch_deg,
-                                                args.camera_pitch_then_yaw)
+                                                args.camera_pitch_then_yaw,
+                                                image_path_prefix = args.image_path_prefix,
+                                                image_directory   = args.image_directory)
     else:
         filenames, Rt_world_cam = \
             parse_filenames_poses_from_exif(args.images,
                                             args.camera_roll_deg,
                                             args.camera_yaw_deg,
                                             args.camera_pitch_deg,
-                                            args.camera_pitch_then_yaw)
+                                            args.camera_pitch_then_yaw,
+                                            image_path_prefix = args.image_path_prefix,
+                                            image_directory   = args.image_directory)
+
     if args.rt_world_new_world_old is not None:
         Rt_world_cam = mrcal.compose_Rt( mrcal.Rt_from_rt(np.array(args.rt_world_new_world_old)),
                                          Rt_world_cam )
@@ -693,13 +698,6 @@ if 1:
 
 
 
-
-if args.image_path_prefix is not None:
-    filenames = [f"{args.image_path_prefix}/{f}" \
-                 for f in filenames]
-elif args.image_directory is not None:
-    filenames = [f"{args.image_directory}/{os.path.basename(f)}" \
-                 for f in filenames]
 images_filenames = filenames
 
 

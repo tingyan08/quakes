@@ -49,23 +49,6 @@ def parse_args():
             raise argparse.ArgumentTypeError(f"The argument'{string}' should have {N} values, but instead it had {len(l)} values")
         return l
 
-    parser.add_argument('--image0',
-                        type=int,
-                        default=0,
-                        help='''Start with the Nth matching image in the glob.
-                        If omitted, start at the first image''')
-
-    parser.add_argument('--Nimages',
-                        type=int,
-                        help='''Process N images starting at image0. If omitted,
-                        process all images''')
-
-    parser.add_argument('--ins-vnl-plane',
-                        type=str,
-                        help='''A vnl containing a time-series of poses of the
-                        PLANE. We transform these into camera poses, and write
-                        those into the EXIF tags. If omitted, we do not write
-                        pose information into the EXIF tags''')
     parser.add_argument('--body-manufacturer',
                         type = str,
                         help=r'''Arbitrary string to be written into the
@@ -121,31 +104,42 @@ def parse_args():
                         be omitted also. Similarly, if given, --model must be
                         given also.''')
 
+    parser.add_argument('--metadata',
+                        type=str,
+                        help='''A vnl containing a time-series of poses of the
+                        airplane or cameras. Each row represents an image
+                        captured from a particular pose. Exclusive with any
+                        image globs passed in on the commandline''')
+
     parser.add_argument('--camera-roll-deg',
                         type = float,
                         default = 0,
-                        help='''The camera roll, relative to the airplane, in
-                        degrees. 0deg = "camera is mounted normally"; 90deg =
-                        "camera is mounted sideways"''')
+                        help='''Used only if --metadata contains world-airplane
+                        transformations. The camera roll, relative to the
+                        airplane, in degrees. 0deg = "camera is mounted
+                        normally"; 90deg = "camera is mounted sideways"''')
     parser.add_argument('--camera-yaw-deg',
                         type = float,
                         default = 0,
-                        help='''The camera yaw, relative to the airplane, in
-                        degrees. 0deg = "camera is looking in the forward
-                        airplane direction"; 90deg = "camera is looking to the
-                        left of the airplane"''')
+                        help='''Used only if --metadata contains world-airplane
+                        transformations. The camera yaw, relative to the
+                        airplane, in degrees. 0deg = "camera is looking in the
+                        forward airplane direction"; 90deg = "camera is looking
+                        to the left of the airplane"''')
     parser.add_argument('--camera-pitch-deg',
                         type = float,
                         default = 0,
-                        help='''The camera pitch, relative to the airplane, in
-                        degrees. 0deg = "camera is looking along the
-                        horizontal"; 90deg = "camera is looking straight
+                        help='''Used only if --metadata contains world-airplane
+                        transformations. The camera pitch, relative to the
+                        airplane, in degrees. 0deg = "camera is looking along
+                        the horizontal"; 90deg = "camera is looking straight
                         down"''')
     parser.add_argument('--camera-pitch-then-yaw',
                         action='store_true',
-                        help='''Specifies whether --camera-pitch-deg is applied
-                        before --camera-yaw-deg, or the other way around. By
-                        default, we yaw and then pitch (used for the
+                        help='''Used only if --metadata contains world-airplane
+                        transformations. Specifies whether --camera-pitch-deg is
+                        applied before --camera-yaw-deg, or the other way
+                        around. By default, we yaw and then pitch (used for the
                         mostly-side-looking SAR fusion geometry). With
                         --camera-pitch-then-yaw we go the other way (used for
                         the mostly down-looking QUAKES geometry)''')
@@ -219,14 +213,27 @@ def parse_args():
 
     parser.add_argument('images',
                         type=str,
-                        nargs='+',
-                        help='''Globs containing images we're converting.
-                        Recognized image formats indicate images that are
-                        already usable. Everything else is run through a raw
-                        converter. The layout of the globs is not considered:
-                        all the images are processed together''')
+                        nargs='*',
+                        help='''The images we're processing. Optional. Exclusive
+                        with --metadata. world-camera transform must be present
+                        in the EXIF; this will be repacked into other EXIF tags
+                        for pix4d. If the images is already in a standard
+                        format, I dont mess with the image bits: I leave them
+                        alone''')
 
     args = parser.parse_args()
+
+    if args.metadata is not None and \
+       len(args.images) > 0:
+        print("Exactly one of --metadata and images must be passed-in. Here we have both",
+              file=sys.stderr)
+        sys.exit(1)
+    if args.metadata is None and \
+       len(args.images) == 0:
+        print("Exactly one of --metadata and images must be passed-in. Here we have none",
+              file=sys.stderr)
+        sys.exit(1)
+
     return args
 
 args = parse_args()
@@ -246,6 +253,13 @@ import cv2
 import shutil
 import multiprocessing
 import signal
+
+sys.path[:0] = '/home/dima/src_boats/sfmviz/',
+from generic_functions import parse_filenames_poses_from_metadata
+from generic_functions import parse_filenames_poses_from_exif
+from generic_functions import ne_from_latlon
+from generic_functions import latlon_from_ne
+
 
 if not args.prototype_raw_converter:
     import _raw_convert
@@ -273,366 +287,6 @@ else:
     if args.pixels_per_mm is not None:
         print(f"Both --model and --pixels-per-mm should be given, or neither should be", file=sys.stderr)
         sys.exit(1)
-
-##################### copy of functions from sfmviz.py. Please consolidate
-# https://github.jpl.nasa.gov/kogan/sfmviz
-
-# Defines the local cartesian coordinate system. Before use, MUST be filled-in
-# by proj_context__init()
-proj_context = None
-
-def proj_context__init(latlon,
-                       allow_reinit = False,
-                       recenter     = True):
-    r'''Initializes our locally-planar coordinate system at the given latlon
-
-Used by ne_from_latlon() and latlon_from_ne(). This function MUST be called
-before either of those
-
-    '''
-
-    global proj_context
-
-    if proj_context is not None:
-        if not allow_reinit:
-            raise Exception("Trying to initialize an already-initialized proj_context")
-
-    zone = 1 + int((latlon[1] + 180) // 6)
-    proj_context = dict(proj = \
-                        pyproj.Proj(proj           = 'utm',
-                                    zone           = zone,
-                                    ellps          = 'WGS84',
-                                    preserve_units = False # output in meters
-                                    ))
-
-    e,n = proj_context['proj'](latlon[1], latlon[0])
-    if recenter:
-        proj_context['ne0'] = np.array((n,e))
-    else:
-        proj_context['ne0'] = (0,0)
-def ne_from_latlon(latlon, get_gradients=False):
-    '''Compute translated UTM (northing,easting) from a lat,lon pair
-
-Reports (northing,easting) in meters in a common UTM coordinate system. The
-local coordinate system is defined by calling proj_context__init(), which MUST
-be done before calling this function
-
-    '''
-
-    global proj_context
-    if proj_context is None:
-        raise Exception("Need to initialize the context by calling proj_context__init() before computing coord transformations")
-
-    lat = latlon[..., 0]
-    lon = latlon[..., 1]
-    en  = proj_context['proj'](lon,lat)
-    e,n = en
-
-    ne = nps.glue( nps.dummy(np.array(n),-1),
-                   nps.dummy(np.array(e),-1),
-                   axis=-1 ) - proj_context['ne0']
-
-    if not get_gradients:
-        return ne
-
-    # gradients
-    #
-    # I'm using pyproj, which has some gradient support
-    # (proj_context['proj'].get_factors() returns something relevant-looking).
-    # But there's no clear way to convert this to a full gradient matrix, so I
-    # don't even bother. I use forward differences, and call it good.
-    dlatlon = 1e-6
-    dne_dlatlon = np.zeros(latlon.shape + (2,), dtype=float)
-    den_dlat = np.array(proj_context['proj'](lon,        lat+dlatlon)) - en
-    den_dlon = np.array(proj_context['proj'](lon+dlatlon,lat        )) - en
-    dne_dlatlon[...,0,0] = den_dlat[...,1] / dlatlon
-    dne_dlatlon[...,1,0] = den_dlat[...,0] / dlatlon
-    dne_dlatlon[...,0,1] = den_dlon[...,1] / dlatlon
-    dne_dlatlon[...,1,1] = den_dlon[...,0] / dlatlon
-
-    return ne, dne_dlatlon
-def latlon_from_ne(ne):
-    '''Compute lat,lon from a translated UTM (northing,easting)
-
-Ingests a (northing,easting) in meters in a common UTM coordinate system. The
-local coordinate system is defined by calling proj_context__init(), which MUST
-be done before calling this function
-
-    '''
-
-    global proj_context
-    if proj_context is None:
-        raise Exception("Need to initialize the context by calling proj_context__init() before computing coord transformations")
-
-    lon,lat = proj_context['proj'](ne[..., 1] + proj_context['ne0'][1],
-                                   ne[..., 0] + proj_context['ne0'][0], inverse=True)
-
-    return nps.glue( nps.dummy(np.array(lat),-1),
-                     nps.dummy(np.array(lon),-1),
-                     axis=-1 )
-
-def compute__R_world_cam(rpy__plane,
-                         camera_roll_deg       = 0,
-                         camera_yaw_deg        = 0,
-                         camera_pitch_deg      = 0,
-                         camera_pitch_then_yaw = False):
-    r'''Computes a rotation from pix4d-style euler angles
-
-There are many interpretations of "roll,pitch,yaw". This function follows the
-Pix4D conventions, defined on their support page:
-
-  https://support.pix4d.com/hc/en-us/articles/202558969
-
-Specifically, in the document linked on that page, and with a copy on our
-server:
-
-  https://aargh.jpl.nasa.gov/proj/uavsar/docs/Pix4D_Yaw_Pitch_Roll_Omega_to_Phi_Kappa_angles_and_conversion.pdf
-
-The "world" frame is "north,east,down"
-The "body"  frame (from that pdf) is "forward,right,down"
-
-We return a rotation to map mrcal-style camera coords (right,down,forward) to
-world coords (north,east,down)
-
-    '''
-
-    r,p,y = nps.transpose(rpy__plane)
-    sy,cy = np.sin(y),np.cos(y)
-    sp,cp = np.sin(p),np.cos(p)
-    sr,cr = np.sin(r),np.cos(r)
-
-    # I want to do this:
-    #   Ry = np.array((( cy, -sy, 0.),
-    #                  ( sy,  cy, 0.),
-    #                  ( 0.,  0., 1.)))
-    #
-    #   Rp = np.array((( cp, 0., sp),
-    #                  ( 0., 1., 0.),
-    #                  (-sp, 0., cp)))
-    #
-    #   Rr = np.array(((1., 0.,  0.),
-    #                  (0., cr, -sr),
-    #                  (0., sr,  cr)))
-    #
-    # But each R should have shape (...,3,3), so I need to do more typing:
-    Ry = np.zeros( y.shape + (3,3), dtype=float)
-    Ry[...,2,2] = 1.
-    Ry[...,0,0] = cy
-    Ry[...,0,1] = -sy
-    Ry[...,1,0] = sy
-    Ry[...,1,1] = cy
-
-    Rp = np.zeros( p.shape + (3,3), dtype=float)
-    Rp[...,1,1] = 1.
-    Rp[...,0,0] = cp
-    Rp[...,0,2] = sp
-    Rp[...,2,0] = -sp
-    Rp[...,2,2] = cp
-
-    Rr = np.zeros( r.shape + (3,3), dtype=float)
-    Rr[...,0,0] = 1.
-    Rr[...,1,1] = cr
-    Rr[...,1,2] = -sr
-    Rr[...,2,1] = sr
-    Rr[...,2,2] = cr
-
-    R_world_body = nps.matmult(Ry,Rp,Rr)
-
-    # The rpy we just processed is from a PLANE. We need an extra transformation
-    # to remap this into CAMERA coords. We have another set of (yaw,pitch,roll),
-    # describing the pose of the camera in respect to the plane. In my one test
-    # case so far I have the cameras looking ~90deg to the left and are mounted
-    # sideways (roll ~ 90deg), and are looking some amount down (non-zero
-    # pitch). I need to incorporate the rotations AND take into account the
-    # different coord systems. The plane (body) coordinate system is
-    # (forward,right,down), while the mrcal camera coord system is
-    # (right,down,forward). Testing in my one case so far tells me that for sp =
-    # sin(pitch), cp = sin(pitch) I should get
-    #
-    #   R_cam_body = np.array((
-    #       # cam-right in plane coords
-    #       (0,  sp, cp),
-    #       # cam-down in plane coords
-    #       (-1., 0., 0.),
-    #       # cam-forward in plane coords
-    #       (0., -cp, sp)))
-    #
-    # I engineer a sequence of Euler angle transformations that produces this
-    # result, and I validate it using this script:
-    #
-    #    import numpy as np
-    #    import numpysane as nps
-    #    import sympy
-    #
-    #    sp,cp = sympy.symbols(('sp','cp'))
-    #    sy,cy = sympy.symbols(('sy','cy'))
-    #    sr,cr = sympy.symbols(('sr','cr'))
-    #
-    #    # yaw and roll = 90deg (camera is sideways, looking out to the side)
-    #    sy = 1
-    #    cy = 0
-    #
-    #    sr = 1
-    #    cr = 0
-    #
-    #    R_cam_body_reorder = np.array(((0,1,0),
-    #                                   (0,0,1),
-    #                                   (1,0,0)))
-    #
-    #    Ryaw   = np.array((( cy, 0, sy),
-    #                       (  0, 1,  0),
-    #                       (-sy, 0, cy)))
-    #    Rpitch = np.array(((1,  0,  0),
-    #                       (0, cp,-sp),
-    #                       (0, sp, cp)))
-    #    Rroll  = np.array((( cr, sr, 0),
-    #                       (-sr, cr, 0),
-    #                       (  0,  0, 1)))
-    #
-    #    R_cam_body = nps.matmult(Rroll, Rpitch, Ryaw, R_cam_body_reorder)
-    #
-    #    print(repr(R_cam_body))
-    #
-    # It reports
-    #
-    #   array([[0, sp, cp],
-    #          [-1, 0, 0],
-    #          [0, -cp, sp]], dtype=object)
-    #
-    # Which matches the desired R_cam_body above. Without hardcoding the
-    # yaw,roll: and I to get:
-    sr = np.sin(camera_roll_deg  * np.pi/180.0)
-    cr = np.cos(camera_roll_deg  * np.pi/180.0)
-    sp = np.sin(camera_pitch_deg * np.pi/180.0)
-    cp = np.cos(camera_pitch_deg * np.pi/180.0)
-    sy = np.sin(camera_yaw_deg   * np.pi/180.0)
-    cy = np.cos(camera_yaw_deg   * np.pi/180.0)
-
-    # camera (right,down,forward) <- plane (forward,right,down)
-    R_cam_body_reorder = np.array(((0,1,0),
-                                   (0,0,1),
-                                   (1,0,0)))
-
-    # Initially, the camera is oriented horizontally, looking ahead, along the
-    # main axis of the plane.
-    #
-    # We yaw around the vertical axis (camera y); assuming no
-    # --camera-pitch-then-yaw
-    Ryaw   = np.array((( cy, 0, sy),
-                       (  0, 1,  0),
-                       (-sy, 0, cy)))
-
-    # Then we pitch around the camera's new horizontal axis (camera x); assuming
-    # no --camera-pitch-then-yaw
-    Rpitch = np.array(((1,  0,  0),
-                       (0, cp,-sp),
-                       (0, sp, cp)))
-
-    # Finally we rotate the camera along its view axis (camera z)
-    Rroll  = np.array((( cr, sr, 0),
-                       (-sr, cr, 0),
-                       (  0,  0, 1)))
-
-    if camera_pitch_then_yaw:
-        R_cam_body = nps.matmult(Rroll, Ryaw, Rpitch, R_cam_body_reorder)
-    else:
-        R_cam_body = nps.matmult(Rroll, Rpitch, Ryaw, R_cam_body_reorder)
-
-    return nps.matmult(R_world_body, nps.transpose(R_cam_body))
-
-def compute__Rt_world_cam(rpy_latlonalt__plane,
-                          camera_roll_deg       = 0,
-                          camera_yaw_deg        = 0,
-                          camera_pitch_deg      = 0,
-                          camera_pitch_then_yaw = False):
-
-    r'''Computes the world <-> cam transformation
-
-Returns a transformation (in an (Ncameras,4,3) array) to map mrcal-style camera
-coords (right,down,forward) to world coords (north,east,down).
-
-    '''
-
-    # shape (...,3,3)
-    R_world_cam = compute__R_world_cam(rpy_latlonalt__plane[:,:3],
-                                       camera_roll_deg       = camera_roll_deg,
-                                       camera_yaw_deg        = camera_yaw_deg,
-                                       camera_pitch_deg      = camera_pitch_deg,
-                                       camera_pitch_then_yaw = camera_pitch_then_yaw)
-
-    lat,lon,alt = nps.transpose(rpy_latlonalt__plane[:, 3:6])
-
-    # shape (...,1,3)
-    ned = nps.glue( # shape (...,1,2)
-                    ne_from_latlon(# shape (...,1,2)
-                                   nps.glue(# shape (...,1,1)
-                                       nps.mv( lat,-1,-3),
-                                       nps.mv( lon,-1,-3),
-                                       axis=-1)),
-                    # shape (...,1,1)
-                    nps.mv(-alt,-1,-3),
-                    axis = -1 )
-
-    Rt_world_cam = nps.glue(R_world_cam, ned,
-                            axis = -2)
-    return Rt_world_cam
-
-def parse_ins_vnl_plane(ins_vnl_plane, image0 = 0, Nimages = None, filenames = None):
-
-    r'''Ingests an INS vnl generated with Chris Assad's tools
-
-I've never seen these tools. This was used for the 2021/06 dataset, and likely
-won't be used again
-
-    '''
-
-    x,list_keys,dict_key_index = vnlog.slurp(ins_vnl_plane)
-
-    colidx = (dict_key_index['roll_deg'],
-              dict_key_index['pitch_deg'],
-              dict_key_index['heading_deg'],
-              dict_key_index['latitude'],
-              dict_key_index['longitude'],
-              dict_key_index['altitude_ft'] )
-
-    if filenames is None:
-
-        x = x[image0:]
-        if Nimages is not None:
-            x = x[:Nimages]
-
-        rpydeg_latlonalt = x[:, colidx ]
-
-    else:
-        # The set of frames described the the ins_vnl_plane file may be
-        # different from the set of frames in the globs the user requested. I
-        # make sure that we have an ins entry for each requested frame. And I
-        # construct the rpydeg_latlonalt array such that the nth row of this
-        # array represents the nth frame
-        rpydeg_latlonalt = np.zeros((len(filenames),6), dtype=float)
-
-        frame_numbers_from_ins_vnl_plane = x[:,dict_key_index['frame_index']].astype(int)
-
-        row_from_frameindex = dict()
-        for row in range(len(frame_numbers_from_ins_vnl_plane)):
-            row_from_frameindex[frame_numbers_from_ins_vnl_plane[row]] = row
-
-
-        frame_numbers_from_globs = np.array([int(os.path.basename(f).split('_')[0]) for f in filenames])
-        for i in range(len(filenames)):
-            frameindex = int(os.path.basename(filenames[i]).split('_')[0])
-
-            try:
-                row = row_from_frameindex[frameindex]
-            except:
-                raise Exception(f"The user requested frame {frameinde} (from file {filenames[i]}), but this wasn't available in {ins_vnl_plane}")
-
-            rpydeg_latlonalt[i,:] = x[row, colidx]
-
-    # altitude: ft -> m
-    rpydeg_latlonalt[:,5] *= 12.*2.54/100.
-
-    return rpydeg_latlonalt
 
 def compute__latlonalt_opkdeg(Rt_world_cam):
 
@@ -992,23 +646,41 @@ def is_raw_image(f):
     return not re.match(pattern, f)
 
 
-
-
-
 if args.model is not None:
     model_intrinsics = mrcal.cameramodel(os.path.expanduser(args.model))
 else:
     model_intrinsics = None
 
-images__expanded_globs = [glob.glob(os.path.expanduser(g)) for g in args.images]
-for i in range(len(images__expanded_globs)):
-    if len(images__expanded_globs[i]) == 0:
-        raise Exception(f"Glob {args.images[i]} matched nothing")
-# flatten and sort
-images_filenames = sorted( [f for g in images__expanded_globs for f in g] )
-images_filenames = images_filenames[args.image0:]
-if args.Nimages is not None:
-    images_filenames = images_filenames[:args.Nimages]
+
+# This block stolen DIRECTLY from sfmviz.py. Please consolidate
+if 1:
+    if args.metadata is not None:
+        filenames, Rt_world_cam = \
+            parse_filenames_poses_from_metadata(args.metadata,
+                                                args.camera_roll_deg,
+                                                args.camera_yaw_deg,
+                                                args.camera_pitch_deg,
+                                                args.camera_pitch_then_yaw)
+    else:
+        filenames, Rt_world_cam = \
+            parse_filenames_poses_from_exif(args.images,
+                                            args.camera_roll_deg,
+                                            args.camera_yaw_deg,
+                                            args.camera_pitch_deg,
+                                            args.camera_pitch_then_yaw)
+    if args.rt_world_new_world_old is not None:
+        Rt_world_cam = mrcal.compose_Rt( mrcal.Rt_from_rt(np.array(args.rt_world_new_world_old)),
+                                         Rt_world_cam )
+    if args.rt_cam_new_cam_old is not None:
+        Rt_world_cam = mrcal.compose_Rt( Rt_world_cam,
+                                         mrcal.invert_Rt(mrcal.Rt_from_rt(np.array(args.rt_cam_new_cam_old))) )
+
+
+
+
+images_filenames = filenames
+
+
 
 if args.image_dims is None and any([is_raw_image(f) for f in images_filenames]):
     r0 = [f for f in images_filenames if is_raw_image(f)][0]
@@ -1023,44 +695,10 @@ for f in images_filenames:
 os.makedirs(args.outdir, mode=0o775, exist_ok = True)
 
 
-
-if args.ins_vnl_plane is not None:
-
-    print("# filename latitude longitude altitude_m omega_deg phi_deg kappa_deg")
-
-    rpy_latlonalt__plane = \
-        parse_ins_vnl_plane(args.ins_vnl_plane,
-                            args.image0,
-                            args.Nimages,
-                            images_filenames)
-    rpy_latlonalt__plane[:,:3] *= np.pi/180.
-
-    proj_context__init( # lat,lon
-                        (rpy_latlonalt__plane[0,3], rpy_latlonalt__plane[0,4] ))
-
-    # shape (Ncam, 4,3)
-    Rt_world_cam = \
-        compute__Rt_world_cam(rpy_latlonalt__plane,
-                              camera_roll_deg       = args.camera_roll_deg,
-                              camera_yaw_deg        = args.camera_yaw_deg,
-                              camera_pitch_deg      = args.camera_pitch_deg,
-                              camera_pitch_then_yaw = args.camera_pitch_then_yaw)
-
-    # Apply pose corrections
-    if args.rt_world_new_world_old is not None:
-        Rt_world_cam = mrcal.compose_Rt( mrcal.Rt_from_rt(np.array(args.rt_world_new_world_old)),
-                                         Rt_world_cam )
-    if args.rt_cam_new_cam_old is not None:
-        Rt_world_cam = mrcal.compose_Rt( Rt_world_cam,
-                                         mrcal.invert_Rt(mrcal.Rt_from_rt(np.array(args.rt_cam_new_cam_old))) )
-
-    latlonalt_opkdeg = compute__latlonalt_opkdeg(Rt_world_cam)
-
-else:
-    latlonalt_opkdeg = None
-
-
-
+# It was possible to only run the raw conversion, without messing with the
+# images. I don't have that path here right now. When it comes back, set
+# latlonalt_opkdeg = None
+latlonalt_opkdeg = compute__latlonalt_opkdeg(Rt_world_cam)
 
 
 def output_line(f,i):

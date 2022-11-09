@@ -721,6 +721,7 @@ os.makedirs(args.outdir, mode=0o775, exist_ok = True)
 # images. I don't have that path here right now. When it comes back, set
 # latlonalt_opkdeg = None
 latlonalt_opkdeg = compute__latlonalt_opkdeg(Rt_world_cam)
+print("# filename latitude longitude altitude_m omega_deg phi_deg kappa_deg")
 
 
 def output_line(f,i):

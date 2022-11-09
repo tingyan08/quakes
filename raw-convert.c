@@ -15,66 +15,16 @@
 #define MSG(fmt, ...) \
     fprintf(stderr, "%s(%d): " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 
-__attribute__((visibility("default")))
-bool raw_convert( // out (width*height*3 bytes)
-                  uint8_t* out_rgb,
+static bool grayworld( // in, out (width*height*3 bytes)
+                       uint8_t* out_rgb,
 
-                  // in
-                  const char* filename_raw, int width, int height,
-                  uint32_t saturate_recip)
+                       // in
+                       int width, int height,
+                       uint32_t saturate_recip)
 {
+    uint8_t* buf = NULL;
     bool result = false;
 
-    // I'm going to parallelize this thing on a higher level, so I'd like these
-    // INNER calls to run sequentially. I don't want the user to ask 20-way
-    // parallelization, then get 20 parallel raw_convert() calls running, and
-    // then have some internal opencv something spawn 20 children each.
-    // 20*20=400 threads is not helpful
-    opencv_disable_threading();
-
-    struct stat st;
-    if(0 != stat(filename_raw, &st))
-    {
-        MSG("stat(%s) failed. Does this file exist?", filename_raw);
-        return false;
-    }
-
-    int datasize_expected = width*height;
-
-    if(st.st_size <= datasize_expected)
-    {
-        MSG("I expected %d bytes of pixel data, but the given file only has %d bytes in it. That is too small",
-            datasize_expected,
-            (int)st.st_size);
-        return false;
-    }
-
-    uint8_t* raw_bits = MAP_FAILED;
-    int fd = open(filename_raw, O_RDONLY);
-    uint8_t* buf = NULL;
-
-    if(fd < 0)
-    {
-        MSG("open(%s) failed", filename_raw);
-        goto done;
-    }
-
-    raw_bits = mmap(NULL, st.st_size,
-                    PROT_READ, MAP_SHARED,
-                    fd, 0);
-    if(raw_bits == MAP_FAILED)
-    {
-        MSG("mmap(%s) failed: %s", filename_raw,
-            strerror(errno));
-        goto done;
-    }
-
-    if(!debayer(out_rgb, &raw_bits[st.st_size - datasize_expected],
-                width, height))
-    {
-        MSG("debayer(%s) failed", filename_raw);
-        goto done;
-    }
 
     // I decimate heavily when computing the mean and percentiles.
 #define DECIMATION_LOG2 3
@@ -192,6 +142,81 @@ bool raw_convert( // out (width*height*3 bytes)
             }
     }
 
+
+    result = true;
+
+ done:
+    free(buf);
+    return result;
+}
+
+__attribute__((visibility("default")))
+bool raw_convert( // out (width*height*3 bytes)
+                  uint8_t* out_rgb,
+
+                  // in
+                  const char* filename_raw, int width, int height,
+                  uint32_t saturate_recip)
+{
+    bool result = false;
+
+    // I'm going to parallelize this thing on a higher level, so I'd like these
+    // INNER calls to run sequentially. I don't want the user to ask 20-way
+    // parallelization, then get 20 parallel raw_convert() calls running, and
+    // then have some internal opencv something spawn 20 children each.
+    // 20*20=400 threads is not helpful
+    opencv_disable_threading();
+
+    struct stat st;
+    if(0 != stat(filename_raw, &st))
+    {
+        MSG("stat(%s) failed. Does this file exist?", filename_raw);
+        return false;
+    }
+
+    int datasize_expected = width*height;
+
+    if(st.st_size <= datasize_expected)
+    {
+        MSG("I expected %d bytes of pixel data, but the given file only has %d bytes in it. That is too small",
+            datasize_expected,
+            (int)st.st_size);
+        return false;
+    }
+
+    uint8_t* raw_bits = MAP_FAILED;
+    int fd = open(filename_raw, O_RDONLY);
+
+    if(fd < 0)
+    {
+        MSG("open(%s) failed", filename_raw);
+        goto done;
+    }
+
+    raw_bits = mmap(NULL, st.st_size,
+                    PROT_READ, MAP_SHARED,
+                    fd, 0);
+    if(raw_bits == MAP_FAILED)
+    {
+        MSG("mmap(%s) failed: %s", filename_raw,
+            strerror(errno));
+        goto done;
+    }
+
+    if(!debayer(out_rgb, &raw_bits[st.st_size - datasize_expected],
+                width, height))
+    {
+        MSG("debayer(%s) failed", filename_raw);
+        goto done;
+    }
+
+    {
+        if(!grayworld( out_rgb,
+                       width, height,
+                       saturate_recip))
+            goto done;
+    }
+
     result = true;
 
  done:
@@ -199,7 +224,6 @@ bool raw_convert( // out (width*height*3 bytes)
         munmap(raw_bits, datasize_expected);
     if(fd >= 0)
         close(fd);
-    free(buf);
 
     return result;
 }

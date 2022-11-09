@@ -157,6 +157,16 @@ def parse_args():
                         that maps the original camera coords to corrected ones.
                         Must be given as a comma-separated list''')
 
+    parser.add_argument('--image-path-prefix',
+                        help='''If given, we prepend the given prefix to the
+                        image paths in the metadata. Exclusive with
+                        --image-directory''')
+
+    parser.add_argument('--image-directory',
+                        help='''If given, we look at the filenames (not
+                        directories) from the metadata only, and we search THIS
+                        directory. Exclusive with --image-path-prefix''')
+
     parser.add_argument('--model',
                         type=str,
                         help='''A cameramodel describing the camera used to
@@ -231,6 +241,12 @@ def parse_args():
     if args.metadata is None and \
        len(args.images) == 0:
         print("Exactly one of --metadata and images must be passed-in. Here we have none",
+              file=sys.stderr)
+        sys.exit(1)
+
+    if args.image_path_prefix is not None and \
+       args.image_directory is not None:
+        print("--image-path-prefix and --image-directory are mutually exclusive",
               file=sys.stderr)
         sys.exit(1)
 
@@ -678,6 +694,12 @@ if 1:
 
 
 
+if args.image_path_prefix is not None:
+    filenames = [f"{args.image_path_prefix}/{f}" \
+                 for f in filenames]
+elif args.image_directory is not None:
+    filenames = [f"{args.image_directory}/{os.path.basename(f)}" \
+                 for f in filenames]
 images_filenames = filenames
 
 

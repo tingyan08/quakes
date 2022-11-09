@@ -134,7 +134,8 @@ def output_chunk(i0, i1,
     if not hasattr(output_chunk, 'ichunk'):
         output_chunk.ichunk = 0
 
-    filename = f"{args.outdir}/chunk{output_chunk.ichunk:04d}.vnl"
+    length_m = distance_cumulative_m[i1] - distance_cumulative_m[i0]
+    filename = f"{args.outdir}/chunk{output_chunk.ichunk:04d}-{(i1-i0+1):05d}images-{length_m/1000:06.02f}km.vnl"
 
     try:
         with open(filename, 'w') as f:
@@ -160,8 +161,7 @@ def output_chunk(i0, i1,
 
     output_chunk.ichunk += 1
 
-    length_m = distance_cumulative_m[i1] - distance_cumulative_m[i0]
-    print(f"Wrote '{filename}'; {i1-i0+1} images; length: {length_m/1000:.02f}km; from {start_description} to {end_description}")
+    print(f"Wrote '{filename}'; from {start_description} to {end_description}")
 
 
 def backup_to_overlap(i0, distance, distance_cumulative_m):

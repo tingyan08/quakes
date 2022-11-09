@@ -8,4 +8,5 @@ bool raw_convert( // out (width*height*3 bytes)
 
                   // in
                   const char* filename_raw, int width, int height,
+                  bool do_grayworld,
                   uint32_t saturate_recip);

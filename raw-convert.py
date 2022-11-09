@@ -189,6 +189,11 @@ def parse_args():
                         input images. This tool may overwrite some files, but it
                         will NEVER overwrite its input''')
 
+    parser.add_argument('--grayworld',
+                        action = 'store_true',
+                        help='''Whether we apply a color rebalancing or not. By
+                        default we leave the colors as they are''')
+
     parser.add_argument('--saturate-recip',
                         type    = int,
                         default = 65536,
@@ -464,6 +469,7 @@ def process_image(filename,
         else:
             image = _raw_convert.raw_convert(filename,
                                              *args.image_dims,
+                                             do_grayworld   = args.grayworld,
                                              saturate_recip = args.saturate_recip)
 
         filename = f"{args.outdir}/{f}.jpg"

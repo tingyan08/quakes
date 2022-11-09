@@ -44,6 +44,7 @@ static PyObject* py_raw_convert(PyObject* NPY_UNUSED(self),
     int width  = -1;
     int height = -1;
     int saturate_recip = 1 << 16;
+    int do_grayworld = 0;
     PyArrayObject* out_rgb = NULL;
     PyObject* result = NULL;
 
@@ -51,14 +52,16 @@ static PyObject* py_raw_convert(PyObject* NPY_UNUSED(self),
 
     char* keywords[] = { "filename_raw",
                          "width", "height",
+                         "do_grayworld",
                          "saturate_recip",
                          NULL };
 
     if(!PyArg_ParseTupleAndKeywords( args, kwargs,
-                                     "sii|i",
+                                     "siip|i",
                                      keywords,
                                      &filename_raw,
                                      &width, &height,
+                                     &do_grayworld,
                                      &saturate_recip,
                                      NULL))
         goto done;
@@ -84,7 +87,9 @@ static PyObject* py_raw_convert(PyObject* NPY_UNUSED(self),
     }
 
     if(!raw_convert( PyArray_DATA(out_rgb),
-                     filename_raw, width, height, saturate_recip ))
+                     filename_raw, width, height,
+                     (bool)do_grayworld,
+                     saturate_recip ))
     {
         PyErr_SetString(PyExc_RuntimeError, "raw_convert() failed!");
         goto done;

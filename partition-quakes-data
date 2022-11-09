@@ -124,7 +124,11 @@ def compute_cumulative_distance(time_sn_filename_lat_lon_alt_rpy):
     return distance_cumulative
 
 def output_chunk(i0, i1,
-                 time_sn_filename_lat_lon_alt_rpy):
+                 time_sn_filename_lat_lon_alt_rpy,
+                 distance_cumulative_m,
+                 *,
+                 start_description,
+                 end_description):
     '''Writes out a chunk of data in rows [i0,i1] inclusive of the input'''
 
     if not hasattr(output_chunk, 'ichunk'):
@@ -155,7 +159,9 @@ def output_chunk(i0, i1,
         sys.exit(1)
 
     output_chunk.ichunk += 1
-    print(f"Wrote '{filename}'")
+
+    length_m = distance_cumulative_m[i1] - distance_cumulative_m[i0]
+    print(f"Wrote '{filename}'; length: {length_m/1000:.02f}km; from {start_description} to {end_description}")
 
 
 def backup_to_overlap(i0, distance, distance_cumulative_m):
@@ -206,17 +212,31 @@ def time_between_s(i0, i1):
 Nrows = len(time_sn_filename_lat_lon_alt_rpy)
 
 i_chunk_start = 0
-
+start_description = "the start of the log"
 for i_here in range(1,Nrows):
     if distance_between_m(i_here-1, i_here) > threshold_distance_m or \
        time_between_s    (i_here-1, i_here) > threshold_time_s:
         # We have a data discontinuity. This chunk ends at the previous row. And
         # the next chunk starts at THIS row, with no overlap
         output_chunk(i_chunk_start, i_here-1,
-                     time_sn_filename_lat_lon_alt_rpy)
-        i_chunk_start = i_here
+                     time_sn_filename_lat_lon_alt_rpy,
+                     distance_cumulative_m,
+                     start_description = start_description,
+                     end_description   = "a data dropout")
+        i_chunk_start     = i_here
+        start_description = "a data dropout"
     elif distance_between_m(i_chunk_start, i_here) > args.chunk_length_km*1000:
         output_chunk(i_chunk_start, i_here-1,
-                     time_sn_filename_lat_lon_alt_rpy)
+                     time_sn_filename_lat_lon_alt_rpy,
+                     distance_cumulative_m,
+                     start_description = start_description,
+                     end_description   = "a distance boundary")
         i_chunk_start = backup_to_overlap(i_here, args.chunk_overlap_km*1000,
                                           distance_cumulative_m)
+        start_description = "a distance boundary"
+    elif i_here == Nrows-1:
+        output_chunk(i_chunk_start, i_here-1,
+                     time_sn_filename_lat_lon_alt_rpy,
+                     distance_cumulative_m,
+                     start_description = start_description,
+                     end_description   = "the end of the log")

@@ -554,11 +554,11 @@ coords (right,down,forward) to world coords (north,east,down).
     '''
 
     # shape (...,3,3)
-    R_world_cam = compute_compute__R_world_cam(rpy_latlonalt__plane[:,:3],
-                                               camera_roll_deg       = camera_roll_deg,
-                                               camera_yaw_deg        = camera_yaw_deg,
-                                               camera_pitch_deg      = camera_pitch_deg,
-                                               camera_pitch_then_yaw = camera_pitch_then_yaw)
+    R_world_cam = compute__R_world_cam(rpy_latlonalt__plane[:,:3],
+                                       camera_roll_deg       = camera_roll_deg,
+                                       camera_yaw_deg        = camera_yaw_deg,
+                                       camera_pitch_deg      = camera_pitch_deg,
+                                       camera_pitch_then_yaw = camera_pitch_then_yaw)
 
     lat,lon,alt = nps.transpose(rpy_latlonalt__plane[:, 3:6])
 

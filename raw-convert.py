@@ -301,7 +301,8 @@ if args.model is not None:
         sys.exit(1)
 
     if args.pixels_per_mm is None:
-        print(f"Both --model and --pixels-per-mm should be given, or neither should be", file=sys.stderr)
+        print(f"Both --model and --pixels-per-mm may not be given",
+              file=sys.stderr)
         sys.exit(1)
 
 else:

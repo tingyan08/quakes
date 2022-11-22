@@ -190,7 +190,7 @@ bool raw_convert( // out (width*height*3 bytes)
 
     if(fd < 0)
     {
-        MSG("open(%s) failed", filename_raw);
+        MSG("open(%s) failed: %s", filename_raw, strerror(errno));
         goto done;
     }
 

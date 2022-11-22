@@ -475,9 +475,15 @@ def process_image(filename,
 
         filename = f"{args.outdir}/{f}.jpg"
 
-        cv2.imwrite(filename,
-                    image,
-                    [cv2.IMWRITE_JPEG_QUALITY, 95])
+        try:
+            cv2.imwrite(filename,
+                        image,
+                        [cv2.IMWRITE_JPEG_QUALITY, 95])
+        except:
+            msg = f"Couldn't imwrite('{filename}')"
+            # map_async swallows errors, so I print to the console also
+            print(msg, file=sys.stderr)
+            raise Exception(msg)
 
     else:
         # I already have a processed image on disk. I copy it to its final
@@ -513,7 +519,13 @@ def process_image(filename,
         else: raise Exception("I only know how to make EXIF and XMP tags")
         exif[key] = tag
 
-    exif.write()
+    try:
+        exif.write()
+    except:
+        msg = f"Couldn't exif.write('{filename}')"
+        # map_async swallows errors, so I print to the console also
+        print(msg, file=sys.stderr)
+        raise Exception(msg)
 
     return filename
 

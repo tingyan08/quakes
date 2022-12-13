@@ -90,6 +90,17 @@ images_filename     = images_t_serialnumber_filename['filename']
 
 images_i_lat_lon_alt_rpy = ins_interpolate_func(images_t)
 
+# Some images are out-of-bounds of the INS readings. I don't extrapolate, so I
+# throw those out immediately
+mask_good = np.isfinite(images_i_lat_lon_alt_rpy[:,0])
+
+images_t                       = images_t                       [mask_good]
+images_serialnumber            = images_serialnumber            [mask_good]
+images_filename                = images_filename                [mask_good]
+images_t_serialnumber_filename = images_t_serialnumber_filename [mask_good]
+images_i_lat_lon_alt_rpy       = images_i_lat_lon_alt_rpy       [mask_good]
+
+
 # I find the INS measurements on either side, and only accept those interpolated
 # measurements where the source INS data wasn't too far off
 images_i = images_i_lat_lon_alt_rpy[:,0]

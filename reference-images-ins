@@ -132,8 +132,12 @@ mask_good = \
 yaw_bound_left  = ins_t_lat_lon_alt_rpy[i0, 6]
 yaw_bound_right = ins_t_lat_lon_alt_rpy[i1, 6]
 
+# I want to assume that yaw is in [-180,180]. So I handle the easy case where
+# it's in [0,360] instead
 if np.max(np.abs(ins_t_lat_lon_alt_rpy[:,6])) > 180:
-    raise Exception("I'm assuming that yaw is in [-180,180]")
+    ins_t_lat_lon_alt_rpy[:,6][ins_t_lat_lon_alt_rpy[:,6]>180] -= 360
+if np.max(np.abs(ins_t_lat_lon_alt_rpy[:,6])) > 180:
+    raise Exception("I'm assuming that yaw is in [-180,180] or [0,360]. Neither was true!")
 i_yaw_wrapped = np.abs(yaw_bound_right - yaw_bound_left) > 180
 
 q = images_i - i0

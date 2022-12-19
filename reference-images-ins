@@ -103,6 +103,8 @@ images_i_lat_lon_alt_rpy       = images_i_lat_lon_alt_rpy       [mask_good]
 
 # I find the INS measurements on either side, and only accept those interpolated
 # measurements where the source INS data wasn't too far off
+dt_max = 1 # at most 1s allowed between image timestamp and INS reading
+
 images_i = images_i_lat_lon_alt_rpy[:,0]
 # round down and up
 i0 = np.floor(images_i).astype(int)
@@ -114,12 +116,11 @@ t1_interpolated = ins_t_lat_lon_alt_rpy[i1, 0] - args.use_ins_lag
 t_err0 = images_t - t0_interpolated
 t_err1 = t1_interpolated - images_t
 
+# Image must be within dt_max sec off the INS reading on either end. Comparing
+# with 0 is a sanity check
 mask_good = \
-    (t_err0 >= 0)   * \
-    (t_err1 >= 0)   * \
-    (t_err0 <= 0.5) * \
-    (t_err1 <= 0.5)
-
+    ((0 <= t_err0) * (t_err0 <= dt_max)) + \
+    ((0 <= t_err1) * (t_err1 <= dt_max))
 
 # I need to look at yaw interpolation: averaging -179.9999 and 179.9999 to
 # produce 0 is NOT the right thing to do. The broken ones have yaw1 ~ 180, yaw0

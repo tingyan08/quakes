@@ -201,12 +201,17 @@ def process_metadata(metadata_glob,
 
     if reference_lla is None:
         raise Exception("No reference_lla found. This is a bug")
+
+    reference_lla_dict = dict(latitude  = reference_lla[0],
+                              longitude = reference_lla[1],
+                              altitude  = reference_lla[2])
+
     reconstruction_initial = [dict(cameras       = dict(),
                                    shots         = dict(),
                                    points        = dict(),
-                                   reference_lla = dict(latitude  = reference_lla[0],
-                                                        longitude = reference_lla[1],
-                                                        altitude  = reference_lla[2]))]
+                                   reference_lla = reference_lla_dict)]
+    Aref,xyzref = topocentric_from_ecef_transform(reference_lla)
+
     # Made-up. Can be anything
     for ID in camera_ids:
         reconstruction_initial[0]['cameras'][ID] = \
@@ -220,12 +225,12 @@ def process_metadata(metadata_glob,
     reconstruction_initial[0]['points'] = {"0": dict(color       = (0,0,0),
                                                      coordinates = (0,0,0))}
 
-    Aref,xyzref = topocentric_from_ecef_transform(reference_lla)
     for (t,images_from_id) in images_from_time_id.items():
         for (ID,d) in images_from_id.items():
             rt_enu_cam = nps.glue( r_from_opk(d['lla_opk'][3:]),
                                    nps.inner(Aref, ecef_from_lla(d['lla_opk'][:3])) + xyzref,
                                    axis = -1 )
+            # rt_enu_cam[3:] /= 100
             rt_cam_enu = mrcal.invert_rt(rt_enu_cam)
             reconstruction_initial[0]['shots'][d['filename']] = \
                 dict(rotation     = list(rt_cam_enu[:3]),
@@ -248,7 +253,8 @@ def process_metadata(metadata_glob,
         ( rig_cameras,
           rig_assignments,
           exif_overrides,
-          reconstruction_initial )
+          reconstruction_initial,
+          reference_lla_dict)
 
 def symlink_images(project_dir,
                    images_dir,
@@ -269,9 +275,10 @@ def symlink_images(project_dir,
 ( rig_cameras,
   rig_assignments,
   exif_overrides,
-  reconstruction_initial ) = process_metadata(metadata_glob,
-                                              camera_ids,
-                                              images_dir)
+  reconstruction_initial,
+  reference_lla) = process_metadata(metadata_glob,
+                                    camera_ids,
+                                    images_dir)
 
 symlink_images(project_dir,
                images_dir,
@@ -285,3 +292,5 @@ with open(f"{project_dir}/exif_overrides.json", "w") as f:
     json.dump(exif_overrides, f)
 with open(f"{project_dir}/reconstruction_initial.json", "w") as f:
     json.dump(reconstruction_initial, f)
+with open(f"{project_dir}/reference_lla.json", "w") as f:
+    json.dump(reference_lla, f)

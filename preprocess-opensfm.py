@@ -213,7 +213,7 @@ def process_metadata(metadata_glob,
             dict(projection_type = "perspective",
                  width           = 640,
                  height          = 480,
-                 focal           = 1,
+                 focal           = 15,
                  k1              = 0,
                  k2              = 0)
     # Made-up. Can be anything. No points at all makes the opensfm viewer fail

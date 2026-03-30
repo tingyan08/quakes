@@ -92,6 +92,28 @@ def process_metadata(metadata_glob,
                      # I only report images that exist in this directory
                      images_dir):
 
+
+
+    # One of the earlier solve results
+    camera_model = \
+        dict(projection_type = "perspective",
+             width           = 5120,
+             height          = 3840,
+             focal           = 3.044695434518824,
+             k1              = -0.14883706627341464,
+             k2              = -0.008325761382255749)
+    camera_models = dict()
+    for ID in camera_ids:
+        camera_models[ID] = camera_model
+
+
+
+
+
+
+
+
+
     regex_use_image = "|".join(camera_ids) ####### error-prone
     dtype = np.dtype([ ('filename', 'U256'),
                        ('latitude longitude altitude_m omega_deg phi_deg kappa_deg', float, (6,)),])
@@ -213,14 +235,8 @@ def process_metadata(metadata_glob,
     Aref,xyzref = topocentric_from_ecef_transform(reference_lla)
 
     # Made-up. Can be anything
-    for ID in camera_ids:
-        reconstruction_initial[0]['cameras'][ID] = \
-            dict(projection_type = "perspective",
-                 width           = 640,
-                 height          = 480,
-                 focal           = 15,
-                 k1              = 0,
-                 k2              = 0)
+    reconstruction_initial[0]['cameras'] = camera_models
+
     # Made-up. Can be anything. No points at all makes the opensfm viewer fail
     reconstruction_initial[0]['points'] = {"0": dict(color       = (0,0,0),
                                                      coordinates = (0,0,0))}
@@ -254,7 +270,8 @@ def process_metadata(metadata_glob,
           rig_assignments,
           exif_overrides,
           reconstruction_initial,
-          reference_lla_dict)
+          reference_lla_dict,
+          camera_models)
 
 def symlink_images(project_dir,
                    images_dir,
@@ -276,7 +293,8 @@ def symlink_images(project_dir,
   rig_assignments,
   exif_overrides,
   reconstruction_initial,
-  reference_lla) = process_metadata(metadata_glob,
+  reference_lla,
+  camera_models) = process_metadata(metadata_glob,
                                     camera_ids,
                                     images_dir)
 
@@ -294,3 +312,5 @@ with open(f"{project_dir}/reconstruction_initial.json", "w") as f:
     json.dump(reconstruction_initial, f)
 with open(f"{project_dir}/reference_lla.json", "w") as f:
     json.dump(reference_lla, f)
+with open(f"{project_dir}/camera_models_overrides.json", "w") as f:
+    json.dump(camera_models, f)

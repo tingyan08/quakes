@@ -50,6 +50,43 @@ def R_from_opk(opk):
 def r_from_opk(opk):
     return mrcal.r_from_R(R_from_opk(opk))
 
+
+
+
+
+# adapted from OpenSfM/opensfm/geo.py
+# THIS function broadcasts fully
+def ecef_from_lla(lla):
+    WGS84_a = 6378137.0
+    WGS84_b = 6356752.314245
+    a2 = WGS84_a*WGS84_a
+    b2 = WGS84_b*WGS84_b
+    lat = np.radians(lla[...,0])
+    lon = np.radians(lla[...,1])
+    clat = np.cos(lat)
+    slat = np.sin(lat)
+    L = 1.0 / np.sqrt(a2 * clat*clat + b2 * slat*slat)
+    return nps.glue( nps.dummy( (a2 * L + lla[...,2]) * clat * np.cos(lon), axis=-1),
+                     nps.dummy( (a2 * L + lla[...,2]) * clat * np.sin(lon), axis=-1),
+                     nps.dummy( (b2 * L + lla[...,2]) * slat,               axis=-1),
+                     axis = -1 )
+def topocentric_from_ecef_transform(lla):
+    xyz = ecef_from_lla(lla)
+    sa = np.sin(np.radians(lla[...,0]))
+    ca = np.cos(np.radians(lla[...,0]))
+    so = np.sin(np.radians(lla[...,1]))
+    co = np.cos(np.radians(lla[...,1]))
+    # A = np.array(( (-so,    -sa*co, ca*co),
+    #                (co,     -sa*so, ca*so),
+    #                (0,      ca,     sa),    ))
+    Ainv =     np.array(( ( -so,   co,     0),
+                          (-co*sa, -sa*so, ca ),
+                          ( ca*co,  ca*so, sa ),))
+    # inverse; y = A x + b -> x = Ainv y - Ainv b
+    return ( Ainv, -nps.inner(Ainv,xyz ) )
+
+
+
 def process_metadata(metadata_glob,
                      camera_ids,
                      # I only report images that exist in this directory
@@ -67,6 +104,7 @@ def process_metadata(metadata_glob,
     lla_opk = np.zeros( (0,6), dtype=float)
     images  = np.zeros( (0,),  dtype='U256')
 
+    tmin = 1e20
     for f in glob.glob(metadata_glob):
 
         arr = vnlog.slurp(f, dtype=dtype)
@@ -115,6 +153,8 @@ def process_metadata(metadata_glob,
             images_from_id[ID] = dict(lla_opk = lla_opk_here[i],
                                       filename = filename)
 
+        if len(times_here):
+            tmin = min(tmin, np.min(times_here))
 
     for (t,images_from_id) in images_from_time_id.items():
         if not all(k in images_from_id for k in camera_ids):
@@ -141,6 +181,7 @@ def process_metadata(metadata_glob,
     rig_assignments = [ generate_rig_snapshot(t,images_from_id) \
                         for (t,images_from_id) in images_from_time_id.items() ]
 
+    reference_lla = None
     for (t,images_from_id) in images_from_time_id.items():
         for (ID,d) in images_from_id.items():
             exif_overrides[d['filename']] = \
@@ -149,12 +190,65 @@ def process_metadata(metadata_glob,
                                 altitude  = d['lla_opk'][2]),
                      opk = dict(omega     = d['lla_opk'][3] * 180./np.pi,
                                 phi       = d['lla_opk'][4] * 180./np.pi,
-                                kappa     = d['lla_opk'][5] * 180./np.pi))
+                                kappa     = d['lla_opk'][5] * 180./np.pi),
+                     camera = ID)
+
+            if t == tmin:
+                # There might be more than one of these; that should be ok: the
+                # position should be identical
+                reference_lla = d['lla_opk'][:3]
+                reference_lla[2] = 0 # altitude=0
+
+    if reference_lla is None:
+        raise Exception("No reference_lla found. This is a bug")
+    reconstruction_initial = [dict(cameras       = dict(),
+                                   shots         = dict(),
+                                   points        = dict(),
+                                   reference_lla = dict(latitude  = reference_lla[0],
+                                                        longitude = reference_lla[1],
+                                                        altitude  = reference_lla[2]))]
+    # Made-up. Can be anything
+    for ID in camera_ids:
+        reconstruction_initial[0]['cameras'][ID] = \
+            dict(projection_type = "perspective",
+                 width           = 640,
+                 height          = 480,
+                 focal           = 1,
+                 k1              = 0,
+                 k2              = 0)
+    # Made-up. Can be anything. No points at all makes the opensfm viewer fail
+    reconstruction_initial[0]['points'] = {"0": dict(color       = (0,0,0),
+                                                     coordinates = (0,0,0))}
+
+    Aref,xyzref = topocentric_from_ecef_transform(reference_lla)
+    for (t,images_from_id) in images_from_time_id.items():
+        for (ID,d) in images_from_id.items():
+            rt_enu_cam = nps.glue( r_from_opk(d['lla_opk'][3:]),
+                                   nps.inner(Aref, ecef_from_lla(d['lla_opk'][:3])) + xyzref,
+                                   axis = -1 )
+            rt_cam_enu = mrcal.invert_rt(rt_enu_cam)
+            reconstruction_initial[0]['shots'][d['filename']] = \
+                dict(rotation     = list(rt_cam_enu[:3]),
+                     translation  = list(rt_cam_enu[3:]),
+                     camera       = ID,
+                     gps_position = list(rt_enu_cam[3:]),
+
+                     # These are made-up. Without these the opensfm viewer fails
+                     gps_dop      = 15,
+                     orientation  = 1,
+                     capture_time = 0,
+                     vertices     = [],
+                     faces        = [],
+                     scale        = 1.0,
+                     covariance   = [],
+                     merge_cc     = 0)
+
 
     return \
         ( rig_cameras,
           rig_assignments,
-          exif_overrides)
+          exif_overrides,
+          reconstruction_initial )
 
 def symlink_images(project_dir,
                    images_dir,
@@ -174,9 +268,10 @@ def symlink_images(project_dir,
 
 ( rig_cameras,
   rig_assignments,
-  exif_overrides ) = process_metadata(metadata_glob,
-                                      camera_ids,
-                                      images_dir)
+  exif_overrides,
+  reconstruction_initial ) = process_metadata(metadata_glob,
+                                              camera_ids,
+                                              images_dir)
 
 symlink_images(project_dir,
                images_dir,
@@ -188,3 +283,5 @@ with open(f"{project_dir}/rig_assignments.json", "w") as f:
     json.dump(rig_assignments, f)
 with open(f"{project_dir}/exif_overrides.json", "w") as f:
     json.dump(exif_overrides, f)
+with open(f"{project_dir}/reconstruction_initial.json", "w") as f:
+    json.dump(reconstruction_initial, f)

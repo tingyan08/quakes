@@ -218,7 +218,7 @@ def process_metadata(metadata_glob,
             if t == tmin:
                 # There might be more than one of these; that should be ok: the
                 # position should be identical
-                reference_lla = d['lla_opk'][:3]
+                reference_lla = np.array(d['lla_opk'][:3])
                 reference_lla[2] = 0 # altitude=0
 
     if reference_lla is None:

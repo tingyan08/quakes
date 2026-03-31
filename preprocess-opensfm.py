@@ -246,7 +246,6 @@ def process_metadata(metadata_glob,
             rt_enu_cam = nps.glue( r_from_opk(d['lla_opk'][3:]),
                                    nps.inner(Aref, ecef_from_lla(d['lla_opk'][:3])) + xyzref,
                                    axis = -1 )
-            # rt_enu_cam[3:] /= 100
             rt_cam_enu = mrcal.invert_rt(rt_enu_cam)
             reconstruction_initial[0]['shots'][d['filename']] = \
                 dict(rotation     = list(rt_cam_enu[:3]),

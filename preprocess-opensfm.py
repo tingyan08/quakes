@@ -313,3 +313,62 @@ with open(f"{project_dir}/reference_lla.json", "w") as f:
     json.dump(reference_lla, f)
 with open(f"{project_dir}/camera_models_overrides.json", "w") as f:
     json.dump(camera_models, f)
+
+
+### GCPs
+# https://opensfm.org/docs/gcp.html?highlight=ground%20control%20points
+def find_shot(regex, shots):
+    all_matched = [re.search(regex,s) for s in shots]
+    all_matched_idx = [i for (i,m) in enumerate(all_matched) if m is not None]
+    if len(all_matched_idx) != 1:
+        raise Exception(f"{regex=} should have matched exactly one shot, but matched {len(all_matched_idx)}")
+    return shots[all_matched_idx[0]]
+gcps_dict = { '36.64609 -118.25383 7396':
+              ( (r'25507.*75\.jpg', 2989, 391),
+                (r'25517.*75\.jpg', 2772, 1955),
+                (r'25527.*75\.jpg', 2713, 3483),
+                (r'25490.*71\.jpg', 2002, 620),
+               ),
+              '36.63275 -118.26595 9424':
+              ( (r'25516.*75\.jpg', 747, 389),
+                (r'25520.*75\.jpg', 687, 1072),
+                (r'25525.*75\.jpg', 700, 1916),
+                (r'25502.*71\.jpg', 4226, 215),
+                (r'25497.*71\.jpg', 4196, 1065),
+                (r'25488.*71\.jpg', 4022, 2543),
+               ),
+              '36.64871 -118.26404 8721':
+              ( (r'25527.*75\.jpg', 3199, 2360),
+                (r'25519.*75\.jpg', 3231, 1069),
+                (r'25515.*75\.jpg', 3322, 408),
+                (r'25488.*71\.jpg', 1572, 2290),
+                (r'25495.*71\.jpg', 1644, 1187),
+                (r'25501.*71\.jpg', 1699, 215),
+               )
+             }
+gcps_points = []
+(w,h) = (camera_models['SN330071']['width'], camera_models['SN330071']['height'])
+for k,v in gcps_dict.items():
+    (lat,lon,alt_ft) = [float(x) for x in k.split(' ')]
+
+    gpcs_point = dict(id = k,
+                      position = dict(latitude  = lat,
+                                      longitude = lon,
+                                      altitude  = alt_ft * 12. * 2.54 / 100.),
+                      observations = [])
+    for (regex,x,y) in v:
+        # to normalized image coords
+        # https://opensfm.org/docs/geometry.html#pixel-coordinates
+        x = (x - (w-1)/2.) / max(w,h)
+        y = (y - (h-1)/2.) / max(w,h)
+
+        filename = find_shot(regex, list(exif_overrides.keys()))
+
+        gpcs_point['observations'].append(dict(shot_id    = filename,
+                                               projection = (x,y)))
+    gcps_points.append(gpcs_point)
+
+ground_control_points = dict(points = gcps_points)
+with open(f"{project_dir}/ground_control_points.json", "w") as f:
+    json.dump(ground_control_points, f)
+

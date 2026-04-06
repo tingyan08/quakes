@@ -1,22 +1,56 @@
 #!/usr/bin/python3
 
+r'''Preprocess data for ingestion to OpenSfM'''
+
 import sys
+import argparse
+import re
+import os
+
+
+def parse_args():
+
+    parser = \
+        argparse.ArgumentParser(description = __doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    parser.add_argument('--metadata',
+                        required = True,
+                        help='''A glob of vnl files that describe each image.
+                        These columns must exist: (filename, latitude,
+                        longitude, altitude_m, omega_deg, phi_deg, kappa_deg)''')
+    parser.add_argument('--images',
+                        required = True,
+                        help='''Directory where the images live. These are
+                        symlinked''')
+    parser.add_argument('--camera-ids',
+                        required = True,
+                        help='''Whitespace-separated list of strings identifying
+                        the cameras. The first one in the list is the rig
+                        origin''')
+    parser.add_argument('--project',
+                        required = True,
+                        help='''A directory for the root of the new project.
+                        This will be created''')
+
+    args = parser.parse_args()
+
+    args.camera_ids = args.camera_ids.split()
+
+    return args
+
+args  = parse_args()
+
+
+
 import numpy as np
 import numpysane as nps
 import vnlog
 import glob
 import mrcal
-import re
 import json
-import os
 import os.path
 
-
-metadata_glob   = '/mnt/aargh/proj/uavsar/2021-06-21-23-quakes-mt-whitney/2021-07-23--processed/batch1/*.vnl'
-images_dir      = '/mnt/diskA/2026-03--quakes/whitney'
-camera_ids      = ('SN330071', # the first one is the origin of the rig
-                   'SN330075')
-project_dir     = '/mnt/diskA/2026-03--quakes/opensfm-whitney-smalldataset-rig-opk'
 
 
 
@@ -293,25 +327,25 @@ def symlink_images(project_dir,
   exif_overrides,
   reconstruction_initial,
   reference_lla,
-  camera_models) = process_metadata(metadata_glob,
-                                    camera_ids,
-                                    images_dir)
+  camera_models) = process_metadata(args.metadata,
+                                    args.camera_ids,
+                                    args.images_dir)
 
-symlink_images(project_dir,
-               images_dir,
+symlink_images(args.project,
+               args.images_dir,
                exif_overrides.keys())
 
-with open(f"{project_dir}/rig_cameras.json", "w") as f:
+with open(f"{args.project}/rig_cameras.json", "w") as f:
     json.dump(rig_cameras, f)
-with open(f"{project_dir}/rig_assignments.json", "w") as f:
+with open(f"{args.project}/rig_assignments.json", "w") as f:
     json.dump(rig_assignments, f)
-with open(f"{project_dir}/exif_overrides.json", "w") as f:
+with open(f"{args.project}/exif_overrides.json", "w") as f:
     json.dump(exif_overrides, f)
-with open(f"{project_dir}/reconstruction_initial.json", "w") as f:
+with open(f"{args.project}/reconstruction_initial.json", "w") as f:
     json.dump(reconstruction_initial, f)
-with open(f"{project_dir}/reference_lla.json", "w") as f:
+with open(f"{args.project}/reference_lla.json", "w") as f:
     json.dump(reference_lla, f)
-with open(f"{project_dir}/camera_models_overrides.json", "w") as f:
+with open(f"{args.project}/camera_models_overrides.json", "w") as f:
     json.dump(camera_models, f)
 
 
@@ -369,6 +403,6 @@ for k,v in gcps_dict.items():
     gcps_points.append(gpcs_point)
 
 ground_control_points = dict(points = gcps_points)
-with open(f"{project_dir}/ground_control_points.json", "w") as f:
+with open(f"{args.project}/ground_control_points.json", "w") as f:
     json.dump(ground_control_points, f)
 

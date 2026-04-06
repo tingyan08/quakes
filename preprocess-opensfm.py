@@ -336,12 +336,12 @@ def symlink_images(project_dir,
   reference_lla,
   camera_models) = process_metadata(args.metadata,
                                     args.camera_ids,
-                                    args.images_dir)
+                                    args.images)
 
 project_opensfm = f'{args.project}/opensfm'
 
 symlink_images(project_opensfm,
-               args.images_dir,
+               args.images,
                exif_overrides.keys())
 os.symlink( "opensfm/images",
             f"{args.project}/images" )

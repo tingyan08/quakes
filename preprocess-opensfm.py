@@ -345,6 +345,8 @@ symlink_images(project_opensfm,
                exif_overrides.keys())
 os.symlink( "opensfm/images",
             f"{args.project}/images" )
+os.symlink( "../config.yaml",
+            f"{project_opensfm}/config.yaml" )
 
 if args.rig:
     with open(f"{project_opensfm}/rig_cameras.json", "w") as f:

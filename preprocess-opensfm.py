@@ -32,6 +32,10 @@ def parse_args():
                         required = True,
                         help='''A directory for the root of the new project.
                         This will be created''')
+    parser.add_argument('--rig',
+                        action = 'store_true',
+                        help='''If given, DO generate the rig definitions''')
+
 
     args = parser.parse_args()
 
@@ -335,10 +339,11 @@ symlink_images(args.project,
                args.images_dir,
                exif_overrides.keys())
 
-with open(f"{args.project}/rig_cameras.json", "w") as f:
-    json.dump(rig_cameras, f)
-with open(f"{args.project}/rig_assignments.json", "w") as f:
-    json.dump(rig_assignments, f)
+if args.rig:
+    with open(f"{args.project}/rig_cameras.json", "w") as f:
+        json.dump(rig_cameras, f)
+    with open(f"{args.project}/rig_assignments.json", "w") as f:
+        json.dump(rig_assignments, f)
 with open(f"{args.project}/exif_overrides.json", "w") as f:
     json.dump(exif_overrides, f)
 with open(f"{args.project}/reconstruction_initial.json", "w") as f:

@@ -7,7 +7,6 @@ import argparse
 import re
 import os
 
-
 def parse_args():
 
     parser = \
@@ -33,7 +32,6 @@ def parse_args():
                         help='''A directory for the root of the new project.
                         This will be created''')
     parser.add_argument('--gcps',
-                        required = True,
                         help='''A json file describing the GCPs. This is a dict
                         with keys "lat lon elevation_m". The values are a list,
                         with each element [regex_filename,pixel_x,pixel_y]''')

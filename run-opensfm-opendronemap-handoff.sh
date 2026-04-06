@@ -29,7 +29,7 @@ for stage ($stages) {
   
   ( cd ~/quakes/OpenSfM/;
     echo "============ $stage"
-    bin/opensfm ${=stage} $D
+    bin/opensfm ${=stage} $D/opensfm
   )
 }
 

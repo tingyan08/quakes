@@ -335,22 +335,26 @@ def symlink_images(project_dir,
                                     args.camera_ids,
                                     args.images_dir)
 
-symlink_images(args.project,
+project_opensfm = f'{args.project}/opensfm'
+
+symlink_images(project_opensfm,
                args.images_dir,
                exif_overrides.keys())
+os.symlink( "opensfm/images",
+            f"{args.project}/images" )
 
 if args.rig:
-    with open(f"{args.project}/rig_cameras.json", "w") as f:
+    with open(f"{project_opensfm}/rig_cameras.json", "w") as f:
         json.dump(rig_cameras, f)
-    with open(f"{args.project}/rig_assignments.json", "w") as f:
+    with open(f"{project_opensfm}/rig_assignments.json", "w") as f:
         json.dump(rig_assignments, f)
-with open(f"{args.project}/exif_overrides.json", "w") as f:
+with open(f"{project_opensfm}/exif_overrides.json", "w") as f:
     json.dump(exif_overrides, f)
-with open(f"{args.project}/reconstruction_initial.json", "w") as f:
+with open(f"{project_opensfm}/reconstruction_initial.json", "w") as f:
     json.dump(reconstruction_initial, f)
-with open(f"{args.project}/reference_lla.json", "w") as f:
+with open(f"{project_opensfm}/reference_lla.json", "w") as f:
     json.dump(reference_lla, f)
-with open(f"{args.project}/camera_models_overrides.json", "w") as f:
+with open(f"{project_opensfm}/camera_models_overrides.json", "w") as f:
     json.dump(camera_models, f)
 
 
@@ -408,6 +412,6 @@ for k,v in gcps_dict.items():
     gcps_points.append(gpcs_point)
 
 ground_control_points = dict(points = gcps_points)
-with open(f"{args.project}/ground_control_points.json", "w") as f:
+with open(f"{project_opensfm}/ground_control_points.json", "w") as f:
     json.dump(ground_control_points, f)
 

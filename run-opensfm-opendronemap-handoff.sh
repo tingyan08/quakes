@@ -1,22 +1,109 @@
 #!/bin/zsh
 
-set -x
-set -e
+read -r -d '' usage <<EOF || true
+Usage: $0 --metadata GLOBS_VNL --images IMAGES_DIR --camera-ids IDS --project PROJECT_DIR
+EOF
 
-D=$1
-shift
+# comma-separated list of long options. Trailing : means "has required
+# argument".
+longopts='metadata:,images:,camera-ids:,project:'
+Ntrailing_options_required=0
 
-if [[ -z "$D" ]] {
-  echo "Usage: $0 project_directory" > /dev/stderr
+# The parsing code to use getopt comes from
+#   /usr/share/doc/util-linux/examples/getopt-example.bash
+# I'm not an expert, but this sample makes things work
+TEMP=$(getopt -o '' --long $longopts -n "$0" -- "$@")
+[ $? -ne 0 ] && {
+    echo '' > /dev/stderr
+    echo $usage > /dev/stderr
+    exit 1;
+}
+eval set -- "$TEMP"
+unset TEMP
+# The arguments now appear in a nice canonical order, and they are terminated by
+# --
+
+while {true} {
+	case "$1" in
+	        '--metadata')
+                        shift
+                        metadata=$1
+                        shift
+                        continue
+                ;;
+
+	        '--images')
+                        shift
+                        images=$1
+                        shift
+                        continue
+                ;;
+
+	        '--camera-ids')
+                        shift
+                        camera_ids=$1
+                        shift
+                        continue
+                ;;
+
+	        '--project')
+                        shift
+                        project=$1
+                        shift
+                        continue
+                ;;
+
+                '--')
+                        shift
+                        break
+                ;;
+
+                *)
+                        echo 'Internal error in argument parsing' >&2
+                        exit 1
+                ;;
+        esac
+}
+
+if (( $#* != Ntrailing_options_required )) {
+       echo "Exactly $Ntrailing_options_required non-option arguments are required. Got $#* instead" > /dev/stderr
+       echo '' > /dev/stderr
+       echo $usage > /dev/stderr
+       exit 1
+}
+
+if [[ -z "$metadata" ]] {
+  echo "ERROR: --metadata is required" > /dev/stderr
+  echo $usage > /dev/stderr
+  exit 1
+}
+if [[ -z "$images" ]] {
+  echo "ERROR: --images is required" > /dev/stderr
+  echo $usage > /dev/stderr
+  exit 1
+}
+if [[ -z "$camera_ids" ]] {
+  echo "ERROR: --camera-ids is required" > /dev/stderr
+  echo $usage > /dev/stderr
+  exit 1
+}
+if [[ -z "$project" ]] {
+  echo "ERROR: --project is required" > /dev/stderr
+  echo $usage > /dev/stderr
   exit 1
 }
 
+
+
+
+set -e
+
 ${0:h:A}/preprocess-opensfm.py \
-  --metadata   '/mnt/aargh/proj/uavsar/2021-06-21-23-quakes-mt-whitney/2021-07-23--processed/batch1/*.vnl' \
-  --images     '/mnt/diskA/2026-03--quakes/whitney' \
-  --camera-ids 'SN330071 SN330075' \
-  --project    $D \
-  --gcps       $D/gcps.json
+  --metadata   $metadata \
+  --images     $images \
+  --camera-ids "$camera_ids" \
+  --project    $project \
+  --gcps       $project/gcps.json
 
 ##### OpenSfM
 stages=(
@@ -29,7 +116,7 @@ for stage ($stages) {
   
   ( cd ~/quakes/OpenSfM/;
     echo "============ $stage"
-    bin/opensfm ${=stage} $D/opensfm
+    bin/opensfm ${=stage} $project/opensfm
   )
 }
 
@@ -41,7 +128,7 @@ ODM=~/quakes/ODM;
   LD_LIBRARY_PATH=$ODM/SuperBuild/install/lib:$ODM/SuperBuild/build/pdal/lib \
   PYTHONPATH="$ODM/../PyODM:$HOME/debianstuff/pygltflib:$HOME/debianstuff/euclidean-distance-transform-3d/build/lib.linux-x86_64-cpython-313:$HOME/debianstuff/CODEM/src" \
   python3 run.py \
-    --project $D \
+    --project $project \
     --max-concurrency 64 \
     --rerun-from odm_meshing \
     --dsm \

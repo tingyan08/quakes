@@ -375,14 +375,20 @@ if args.gcps is not None:
     with open(args.gcps, "r") as f:
         gcps_dict = json.load(f)
 
+
+    # A copy for opendronemap. The json is for opensfm
+    f_gcp_list = open(f"{args.project}/gcp_list.txt", "w")
+    print("EPSG:4326", file=f_gcp_list)
+
     gcps_points = []
     for k,v in gcps_dict.items():
         (lat,lon,alt_ft) = [float(x) for x in k.split(' ')]
+        alt_m = alt_ft * 12. * 2.54 / 100.
 
         gpcs_point = dict(id = k,
                           position = dict(latitude  = lat,
                                           longitude = lon,
-                                          altitude  = alt_ft * 12. * 2.54 / 100.),
+                                          altitude  = alt_m),
                           observations = [])
         for (regex,x,y) in v:
             filename = find_shot(regex, list(exif_overrides.keys()))
@@ -392,13 +398,18 @@ if args.gcps is not None:
 
             # to normalized image coords
             # https://opensfm.org/docs/geometry.html#pixel-coordinates
-            x = (x - (w-1)/2.) / max(w,h)
-            y = (y - (h-1)/2.) / max(w,h)
+            x_normalized = (x - (w-1)/2.) / max(w,h)
+            y_normalized = (y - (h-1)/2.) / max(w,h)
             gpcs_point['observations'].append(dict(shot_id    = filename,
-                                                   projection = (x,y)))
+                                                   projection = (x_normalized,y_normalized)))
+
+            print(f"{lon} {lat} {alt_m} {x} {y} {filename}",
+                  file=f_gcp_list)
+
         gcps_points.append(gpcs_point)
 
     ground_control_points = dict(points = gcps_points)
     with open(f"{project_opensfm}/ground_control_points.json", "w") as f:
         json.dump(ground_control_points, f)
 
+    f_gcp_list.close()

@@ -362,6 +362,12 @@ with open(f"{project_opensfm}/reference_lla.json", "w") as f:
 with open(f"{project_opensfm}/camera_models_overrides.json", "w") as f:
     json.dump(camera_models, f)
 
+# Needed to prevent opendronemap from re-initializing, and recomputing the
+# reference_lla.json and regenerating the config.yaml
+with open(f"{project_opensfm}/image_list.txt", "w") as f:
+    for filename in exif_overrides.keys():
+        print(f"{args.images}/{filename}", file=f)
+
 
 # https://opensfm.org/docs/gcp.html?highlight=ground%20control%20points
 if args.gcps is not None:

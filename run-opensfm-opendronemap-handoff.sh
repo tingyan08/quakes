@@ -123,7 +123,7 @@ for stage ($stages) {
   
   ( cd ~/quakes/OpenSfM/;
     echo "============ $stage"
-    bin/opensfm ${=stage} $project/opensfm
+    python3 bin/opensfm_main.py ${=stage} $project/opensfm
   )
 }
 

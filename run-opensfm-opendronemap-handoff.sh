@@ -1,12 +1,12 @@
 #!/bin/zsh
 
 read -r -d '' usage <<EOF || true
-Usage: $0 --metadata GLOBS_VNL --images IMAGES_DIR --camera-ids IDS --project PROJECT_DIR
+Usage: $0 [--rig] --metadata GLOBS_VNL --images IMAGES_DIR --camera-ids IDS --project PROJECT_DIR
 EOF
 
 # comma-separated list of long options. Trailing : means "has required
 # argument".
-longopts='metadata:,images:,camera-ids:,project:'
+longopts='rig,metadata:,images:,camera-ids:,project:'
 Ntrailing_options_required=0
 
 # The parsing code to use getopt comes from
@@ -50,6 +50,12 @@ while {true} {
                         shift
                         project=$1
                         shift
+                        continue
+                ;;
+
+	        '--rig')
+                        shift
+                        rigopt="--rig"
                         continue
                 ;;
 
@@ -103,7 +109,8 @@ ${0:h:A}/preprocess-opensfm.py \
   --images     $images \
   --camera-ids "$camera_ids" \
   --project    $project \
-  --gcps       $project/gcps.json
+  --gcps       $project/gcps.json \
+  $rigopt
 
 ##### OpenSfM
 stages=(

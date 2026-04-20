@@ -254,6 +254,9 @@ def process_metadata(metadata_glob,
                      opk = dict(omega     = d['lla_opk'][3] * 180./np.pi,
                                 phi       = d['lla_opk'][4] * 180./np.pi,
                                 kappa     = d['lla_opk'][5] * 180./np.pi),
+                     # Used in feature matching, to intelligently find pairs of
+                     # images that are observing the same patch of ground
+                     relative_altitude = d['lla_opk'][2],
                      camera = ID)
 
             if t == tmin:

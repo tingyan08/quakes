@@ -120,23 +120,14 @@ stages=(
   create_tracks
   "reconstruct --algorithm triangulation")
 for stage ($stages) {
-  
-  ( cd ~/quakes/OpenSfM/;
-    echo "============ $stage"
-    python3 bin/opensfm_main.py ${=stage} $project/opensfm
-  )
+  echo "============ $stage"
+  opensfm ${=stage} $project/opensfm
 }
 
 ##### ODM handoff
-
-ODM=~/quakes/ODM;
-
-( cd $ODM;
-  LD_LIBRARY_PATH=$ODM/SuperBuild/install/lib:$ODM/SuperBuild/build/pdal/lib \
-  PYTHONPATH="$ODM/../PyODM:$HOME/debianstuff/pygltflib:$HOME/debianstuff/euclidean-distance-transform-3d/build/lib.linux-x86_64-cpython-313:$HOME/debianstuff/CODEM/src" \
-  python3 run.py \
-    --project $project \
-    --max-concurrency 64 \
-    --rerun-from odm_meshing \
-    --dsm \
-    . )
+opendronemap \
+  --project $project \
+  --max-concurrency 64 \
+  --rerun-from odm_meshing \
+  --dsm \
+  $project(:A)

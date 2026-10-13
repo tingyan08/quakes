@@ -1,6 +1,19 @@
 *.o
 *.so
+*.so.*
+*.d
 *.docstring.h
 *~
 #*
 .#*
+__pycache__/
+
+# Large or generated: data, outputs, container images and environments
+data/
+runs/
+envs/*
+!envs/defs/
+
+# Slide decks (may contain unpublished results) and their build products
+slides/*.pptx
+slides/build/

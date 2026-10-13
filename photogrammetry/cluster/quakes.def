@@ -1,0 +1,94 @@
+Bootstrap: docker
+From: opendronemap/odm:3.6.2-gpu
+
+# Apptainer replacement for the Debian/trixie schroot tarball described in
+#   https://github.com/dkogan/quakes/wiki/2026-05-27--packaging-opensfm-opendronemap
+#
+# - OpenDroneMap 3.6.2 comes from the upstream docker image (/code)
+# - OpenSfM is the new fork (github.com/OpenSfM/OpenSfM), built in its own conda
+#   env in /opt. ODM's bundled OpenSfM is too old: no "reconstruct --algorithm"
+# - mrcal, numpysane, vnlog, ... come from the Ubuntu archive, for /usr/bin/python3
+#
+# Build:
+#   apptainer build --fakeroot envs/quakes-odm.sif photogrammetry/cluster/quakes.def
+
+%arguments
+    OPENSFM_COMMIT=c1fbfcec947e0e4fa4d39eb02a66cddac10934ad
+    VNLOG_TAG=v1.40
+
+%post
+    set -e
+    export DEBIAN_FRONTEND=noninteractive
+
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        zsh git wget ca-certificates build-essential pkg-config \
+        python3-mrcal python3-numpysane python3-vnlog vnlog python3-gnuplotlib \
+        python3-opencv python3-pyproj python3-scipy python3-py3exiv2 python3-exifread \
+        mrbuild libopencv-dev python3-dev libpython3-dev
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+    # The scripts here were written for Debian/trixie's vnlog 1.40: they need
+    # vnlog.slurp(dtype=...). Ubuntu 24.04 ships 1.36. The python module is a
+    # single file, so I take it from the trixie-version tag
+    git clone https://github.com/dkogan/vnlog.git /tmp/vnlog
+    git -C /tmp/vnlog checkout {{ VNLOG_TAG }}
+    cp /tmp/vnlog/lib/vnlog.py /usr/lib/python3/dist-packages/vnlog.py
+    rm -rf /tmp/vnlog
+
+    ##### OpenSfM (new fork) in a conda env at /opt/opensfm-env
+    wget -q -O /tmp/miniforge.sh \
+        https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
+    bash /tmp/miniforge.sh -b -p /opt/miniforge
+    rm /tmp/miniforge.sh
+
+    git clone https://github.com/OpenSfM/OpenSfM.git /opt/OpenSfM
+    cd /opt/OpenSfM
+    git checkout {{ OPENSFM_COMMIT }}
+    git submodule update --init --recursive
+
+    # ODM's environment must not leak into the OpenSfM build
+    unset PYTHONPATH LD_LIBRARY_PATH
+    /opt/miniforge/bin/conda create -y -p /opt/opensfm-env --file conda-linux-64.lock
+    # The lock file doesn't have the build backend
+    /opt/opensfm-env/bin/pip install --no-cache-dir 'scikit-build-core>=0.8.0' 'pybind11>=2.10.0'
+    CONDA_PREFIX=/opt/opensfm-env PATH=/opt/opensfm-env/bin:$PATH \
+        /opt/opensfm-env/bin/pip install --no-cache-dir --no-build-isolation \
+            --config-settings=cmake.define.OPENSFM_BUILD_TESTS=OFF \
+            -e .
+    /opt/miniforge/bin/conda clean -y -a
+
+    ##### Wrappers, named as the wiki's schroot image names them
+    cat > /usr/local/bin/opensfm <<'EOF'
+#!/bin/sh
+# OpenSfM (new fork). Strip ODM's python environment first
+unset PYTHONPATH
+export LD_LIBRARY_PATH=/opt/opensfm-env/lib
+export CONDA_PREFIX=/opt/opensfm-env
+export PATH=/opt/opensfm-env/bin:$PATH
+exec /opt/OpenSfM/bin/opensfm "$@"
+EOF
+
+    cat > /usr/local/bin/opendronemap <<'EOF'
+#!/bin/sh
+exec /code/venv/bin/python3 /code/run.py "$@"
+EOF
+    chmod 755 /usr/local/bin/opensfm /usr/local/bin/opendronemap
+
+%environment
+    # ODM's PYTHONPATH (set by the base image) pulls ODM's bundled opensfm into
+    # every python. /usr/bin/python3 is for the mrcal tools; keep it clean.
+    # ODM's run.py sets up its own paths, so it doesn't need this
+    unset PYTHONPATH
+
+%runscript
+    exec "$@"
+
+%test
+    /usr/bin/python3 -c 'import mrcal, numpysane, vnlog, cv2, pyexiv2, pyproj, inspect; assert "dtype" in inspect.signature(vnlog.slurp).parameters'
+    opensfm --help > /dev/null
+    opendronemap --help > /dev/null
+
+%labels
+    Description QUAKES tools: OpenSfM (new fork) + OpenDroneMap 3.6.2 + mrcal

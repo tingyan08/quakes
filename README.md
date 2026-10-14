@@ -10,10 +10,9 @@ quakes/
     cluster/        Apptainer image + run scripts for the cluster          → cluster/README.md
   gs/               Gaussian splatting: dataset, training, DSM/DTM, evaluation → gs/README.md
     third_party/gsplat   (git submodule, v1.5.3)
-  slides/           figure and deck builders for progress meetings
   data/             input data (git-ignored), e.g. data/whitney-batch1
   runs/             all outputs (git-ignored), e.g. runs/whitney/{raw-converted,photogrammetry,gs}
-  envs/             container images and Python environments (git-ignored); envs/defs/ is tracked
+  envs/             container images and Python environments (git-ignored)
 ```
 
 ## Whitney example, end to end
@@ -41,4 +40,4 @@ Raw frames and INS are read from the QUAKES archive on `/depot/andread/data`.
 - `photogrammetry/generic_functions.py` recovered from git history (commit 3d5cab7)
   to replace the private `sfmviz` module that `raw-convert.py` imports.
 - `photogrammetry/cluster/`: Apptainer replacement for the wiki's schroot image.
-- `gs/`, `slides/`: new.
+- `gs/`: new.

@@ -11,9 +11,7 @@ __pycache__/
 # Large or generated: data, outputs, container images and environments
 data/
 runs/
-envs/*
-!envs/defs/
+envs/
 
-# Slide decks (may contain unpublished results) and their build products
-slides/*.pptx
-slides/build/
+# Slide decks and their builders (kept locally, not in the repository)
+slides/

@@ -25,7 +25,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))     # project
 D = sys.argv[1] if len(sys.argv) > 1 else f"{ROOT}/runs/whitney/gs/dsm-dtm-compare"
 # ODM first, then 3DGS, 2DGS, then any other <name>_{dsm,dtm}.tif from make_dsm_dtm.sh
 LABELS = {"odm": "ODM (OpenSfM + OpenMVS)", "3dgs": "3DGS", "2dgs": "2DGS",
-          "3dgs-f2": "3DGS · 1/2 res", "2dgs-f2": "2DGS · 1/2 res"}
+          "3dgs-f2": "3DGS · 1/2 res", "2dgs-f2": "2DGS · 1/2 res",
+          # models from another run (e.g. the 2-camera block) compared on this run's grid
+          "2cam-3dgs": "3DGS · 2 cams", "2cam-2dgs": "2DGS · 2 cams",
+          "2cam-3dgs-f2": "3DGS · 1/2 res · 2 cams", "2cam-2dgs-f2": "2DGS · 1/2 res · 2 cams"}
 found = sorted(f[:-len("_dsm.tif")] for f in os.listdir(D)
                if f.endswith("_dsm.tif") and os.path.exists(f"{D}/{f[:-len('_dsm.tif')]}_dtm.tif"))
 order = ["odm", "3dgs", "2dgs"]

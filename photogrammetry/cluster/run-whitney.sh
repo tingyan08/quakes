@@ -19,6 +19,8 @@
 #   PROJECT   output project directory. Removed and recreated if FRESH=1.
 #             Default: runs/whitney/photogrammetry
 #   FIRST,LAST  the frame range to process
+#   CAMERA_IDS  cameras to use. Default: 'SN330071 SN330075' (the wiki example);
+#               all 8: 'SN330068 SN330069 SN330070 SN330071 SN330074 SN330075 SN330076 SN330077'
 
 set -e
 
@@ -29,7 +31,7 @@ DATA=${DATA:-$ROOT/runs/whitney/raw-converted}
 PROJECT=${PROJECT:-$ROOT/runs/whitney/photogrammetry}
 FIRST=${FIRST:-25480}
 LAST=${LAST:-25535}
-CAMERA_IDS='SN330071 SN330075'
+CAMERA_IDS=${CAMERA_IDS:-SN330071 SN330075}
 NPROC=${SLURM_CPUS_PER_TASK:-$(nproc)}
 
 [[ "$FRESH" == 1 ]] && rm -rf "$PROJECT"
@@ -39,7 +41,8 @@ mkdir -p "$PROJECT/small-images"
 for f in "$DATA"/images/*.jpg; do
     b=$(basename "$f")
     frame=${b%%_*}
-    if (( frame >= FIRST && frame <= LAST )) && [[ $b =~ SN33007[15]\.jpg$ ]]; then
+    sn=${b##*_}; sn=${sn%.jpg}
+    if (( frame >= FIRST && frame <= LAST )) && [[ " $CAMERA_IDS " == *" $sn "* ]]; then
         ln -sf "$f" "$PROJECT/small-images/$b"
     fi
 done

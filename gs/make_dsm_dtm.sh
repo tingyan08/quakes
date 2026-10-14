@@ -4,6 +4,7 @@
 #   ODM   : odm_georeferencing/odm_georeferenced_model.laz (OpenSfM + OpenMVS)
 #   3DGS  : back-projected expected depth (render_dsm.py --dump_points)
 #   2DGS  : back-projected median depth   (render_dsm.py --dump_points)
+#   ...   : any other <name>_points.csv in the output directory
 #
 # Pipeline: statistical outlier removal -> DSM = mean Z of all points;
 #           SMRF ground filter (ODM's --dtm defaults) -> DTM = mean Z of ground points.
@@ -60,7 +61,16 @@ EOF
     $PDAL pipeline $OUT/$name.pipeline.json
 }
 
-run odm  "{ \"type\": \"readers.las\", \"filename\": \"$PROJ/odm_georeferencing/odm_georeferenced_model.laz\" }"
-run 3dgs "{ \"type\": \"readers.text\", \"filename\": \"$OUT/3dgs_points.csv\" }"
-run 2dgs "{ \"type\": \"readers.text\", \"filename\": \"$OUT/2dgs_points.csv\" }"
+# ODM's dense cloud, then every <name>_points.csv from render_dsm.py --dump_points.
+# METHODS="3dgs-f2" (space-separated) limits the run to those names.
+want() { [[ -z "${METHODS:-}" || " $METHODS " == *" $1 "* ]]; }
+if want odm; then
+    run odm "{ \"type\": \"readers.las\", \"filename\": \"$PROJ/odm_georeferencing/odm_georeferenced_model.laz\" }"
+fi
+for csv in "$OUT"/*_points.csv; do
+    name=$(basename "$csv" _points.csv)
+    if want "$name"; then
+        run "$name" "{ \"type\": \"readers.text\", \"filename\": \"$csv\" }"
+    fi
+done
 ls -la $OUT/*.tif

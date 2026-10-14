@@ -17,11 +17,16 @@ Run after `photogrammetry/` has produced `runs/whitney/photogrammetry`.
 | 3 | `bash gs/train_2dgs.sh` | `2dgs/` (~54 min) |
 | 4 | `envs/gs/bin/python gs/render_dsm.py --result_dir runs/whitney/gs/3dgs --dump_points runs/whitney/gs/dsm-dtm-compare/3dgs_points.csv` | `3dgs/dsm_eval/`: DSM vs ODM, plus the point cloud |
 |   | `envs/gs/bin/python gs/render_dsm.py --result_dir runs/whitney/gs/2dgs --model 2dgs --depth median --dump_points runs/whitney/gs/dsm-dtm-compare/2dgs_points.csv` | `2dgs/dsm_eval_2dgs_median/` |
-| 5 | `bash gs/make_dsm_dtm.sh` | `dsm-dtm-compare/{odm,3dgs,2dgs}_{dsm,dtm}.tif`: one PDAL pipeline for all three |
+| 5 | `bash gs/make_dsm_dtm.sh` | `dsm-dtm-compare/<method>_{dsm,dtm}.tif`: one PDAL pipeline for ODM and every `<method>_points.csv` (`METHODS="3dgs-f2"` limits the run) |
 | 6 | `envs/gs/bin/python gs/compare_dsm_dtm.py` | `dsm-dtm-compare/`: stats.md, maps, differences, profiles |
+| – | `envs/gs/bin/python gs/eval_renders.py --result_dir runs/whitney/gs/3dgs --eval_factor 4` | `3dgs/eval_renders_f4.json`: held-out PSNR/SSIM/LPIPS at a chosen resolution, so models trained at different resolutions compare on the same images |
 | – | `bash gs/gpu_capacity_test.sh` | `gpu-capacity/capacity.csv`: Gaussians vs peak VRAM |
 
-Steps 2–4 and the capacity test need a GPU. Steps 1 and 5 use the photogrammetry
+Training resolution: `FACTOR` (default 4, i.e. 1280 × 960). For example
+`FACTOR=2 OUT=runs/whitney/gs/3dgs-f2 bash gs/train_3dgs.sh`; then render its DSM with
+`--data_factor 2 --dump_stride 8`, which keeps the point density of the 1/4-resolution runs.
+
+Steps 2–4, `eval_renders.py` and the capacity test need a GPU. Steps 1 and 5 use the photogrammetry
 image (`envs/quakes-odm.sif`) for OpenSfM and PDAL.
 
 ## Environment (`envs/gs`)

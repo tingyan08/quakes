@@ -23,10 +23,20 @@ import rasterio
 import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))     # project root
 D = sys.argv[1] if len(sys.argv) > 1 else f"{ROOT}/runs/whitney/gs/dsm-dtm-compare"
-METHODS = [("odm", "ODM (OpenSfM + OpenMVS)"), ("3dgs", "3DGS"), ("2dgs", "2DGS")]
+# ODM first, then 3DGS, 2DGS, then any other <name>_{dsm,dtm}.tif from make_dsm_dtm.sh
+LABELS = {"odm": "ODM (OpenSfM + OpenMVS)", "3dgs": "3DGS", "2dgs": "2DGS",
+          "3dgs-f2": "3DGS · 1/2 res", "2dgs-f2": "2DGS · 1/2 res"}
+found = sorted(f[:-len("_dsm.tif")] for f in os.listdir(D)
+               if f.endswith("_dsm.tif") and os.path.exists(f"{D}/{f[:-len('_dsm.tif')]}_dtm.tif"))
+order = ["odm", "3dgs", "2dgs"]
+METHODS = [(m, LABELS.get(m, m.upper())) for m in order if m in found] + \
+          [(m, LABELS.get(m, m.upper())) for m in found if m not in order]
 
 SURFACE, TEXT, TEXT2 = "#fcfcfb", "#0b0b0b", "#52514e"
-SERIES = {"odm": "#2a78d6", "3dgs": "#eb6834", "2dgs": "#1baf7a"}     # categorical, fixed order
+# categorical palette in fixed order: a method keeps its colour whichever others are present
+PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
+SERIES = {m: PALETTE[i % len(PALETTE)] for i, m in
+          enumerate(["odm", "3dgs", "2dgs"] + [m for m, _ in METHODS if m not in ("odm", "3dgs", "2dgs")])}
 SEQUENTIAL = ['#cde2fb', '#b7d3f6', '#9ec5f4', '#86b6ef', '#6da7ec', '#5598e7', '#3987e5',
               '#2a78d6', '#256abf', '#1c5cab', '#184f95', '#104281', '#0d366b']
 DIVERGING = ['#1c5cab', '#3987e5', '#86b6ef', '#f0efec', '#f0a39a', '#e34948', '#a8302f']
@@ -117,7 +127,7 @@ def shaded(a, lo, hi):
 
 
 # ---- maps: DSM row, DTM row; one color scale per row, set by ODM ----
-fig, ax = plt.subplots(2, 3, figsize=(18, 7.6), constrained_layout=True)
+fig, ax = plt.subplots(2, len(METHODS), figsize=(6 * len(METHODS), 7.6), constrained_layout=True, squeeze=False)
 for r, kind in enumerate(("dsm", "dtm")):
     lo, hi = np.nanpercentile(z["odm", kind], [1, 99])
     for c, (m, name) in enumerate(METHODS):
@@ -136,12 +146,13 @@ plt.close(fig)
 
 # ---- differences vs ODM ----
 lim = 60
-fig, ax = plt.subplots(2, 2, figsize=(13, 7.6), constrained_layout=True)
+others = [m for m, _ in METHODS if m != "odm"]
+fig, ax = plt.subplots(2, len(others), figsize=(6.5 * len(others), 7.6), constrained_layout=True, squeeze=False)
 for r, kind in enumerate(("dsm", "dtm")):
-    for c, m in enumerate(("3dgs", "2dgs")):
+    for c, m in enumerate(others):
         s = stats["methods"][m][f"{kind}_vs_odm"]
         im = ax[r, c].imshow(z[m, kind] - z["odm", kind], cmap=div, vmin=-lim, vmax=lim)
-        ax[r, c].set_title(f"{m.upper()} − ODM · {kind.upper()} · median {s['median_m']:+.1f} m, "
+        ax[r, c].set_title(f"{LABELS.get(m, m.upper())} − ODM · {kind.upper()} · median {s['median_m']:+.1f} m, "
                            f"NMAD {s['nmad_m']:.1f} m")
         ax[r, c].set_axis_off()
 cb = fig.colorbar(im, ax=ax, fraction=0.02, pad=0.01)

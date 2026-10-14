@@ -11,6 +11,8 @@ set -uo pipefail
 DATA=$DATASET
 OUT=${OUT:-$RUNS/gpu-capacity}
 STEPS=${STEPS:-7000}
+# absolute paths: the trainer runs from gsplat's examples/ directory
+OUT=$(realpath -m "$OUT"); DATA=$(realpath -m "$DATA")
 CSV=$OUT/capacity.csv
 mkdir -p $OUT
 

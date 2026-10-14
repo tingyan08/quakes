@@ -11,6 +11,8 @@ set -euo pipefail
 . "$(dirname "$0")/common.sh"
 OUT=${OUT:-$RUNS/2dgs}
 FACTOR=${FACTOR:-4}
+# absolute paths: the trainer runs from gsplat's examples/ directory
+OUT=$(realpath -m "$OUT"); DATASET=$(realpath -m "$DATASET")
 
 cd "$GSPLAT/examples"
 "$GS_PY" simple_trainer_2dgs.py \

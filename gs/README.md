@@ -19,6 +19,7 @@ Run after `photogrammetry/` has produced `runs/whitney/photogrammetry`.
 |   | `envs/gs/bin/python gs/render_dsm.py --result_dir runs/whitney/gs/2dgs --model 2dgs --depth median --dump_points runs/whitney/gs/dsm-dtm-compare/2dgs_points.csv` | `2dgs/dsm_eval_2dgs_median/` |
 | 5 | `bash gs/make_dsm_dtm.sh` | `dsm-dtm-compare/<method>_{dsm,dtm}.tif`: one PDAL pipeline for ODM and every `<method>_points.csv` (`METHODS="3dgs-f2"` limits the run) |
 | 6 | `envs/gs/bin/python gs/compare_dsm_dtm.py` | `dsm-dtm-compare/`: stats.md, maps, differences, profiles |
+| 7 | `envs/gs/bin/python gs/compare_gcps.py --gcps runs/whitney/photogrammetry/gcp_list.txt --out runs/whitney/gs/gcp-check "3DGS=runs/whitney/gs/dsm-dtm-compare/3dgs" ...` | `gcp-check/gcp_check.md`: each DSM/DTM minus the GCP heights (the GCPs are bundle-adjustment control, not independent checkpoints) |
 | – | `envs/gs/bin/python gs/eval_renders.py --result_dir runs/whitney/gs/3dgs --eval_factor 4` | `3dgs/eval_renders_f4.json`: held-out PSNR/SSIM/LPIPS at a chosen resolution, so models trained at different resolutions compare on the same images |
 | – | `bash gs/gpu_capacity_test.sh` | `gpu-capacity/capacity.csv`: Gaussians vs peak VRAM |
 

@@ -66,6 +66,7 @@ def main():
     ap.add_argument("--photogrammetry", default=f"{ROOT}/runs/whitney/photogrammetry",
                     help="the ODM project: reference DSM and the UTM offset")
     ap.add_argument("--data_factor", type=int, default=4)
+    ap.add_argument("--test_every", type=int, default=8, help="must match training")
     ap.add_argument("--ckpt", default=None)
     ap.add_argument("--grid_factor", type=int, default=4,
                     help="decimation of the ODM DSM grid used as the comparison grid")
@@ -91,7 +92,7 @@ def main():
 
     COORDS = f"{args.photogrammetry}/odm_georeferencing/coords.txt"
     ODM_DSM = f"{args.photogrammetry}/odm_dem/dsm.tif"
-    parser = Parser(args.data_dir, factor=args.data_factor, normalize=True, test_every=8)
+    parser = Parser(args.data_dir, factor=args.data_factor, normalize=True, test_every=args.test_every)
     T_inv = np.linalg.inv(parser.transform)        # normalized -> OpenSfM ENU
     with open(COORDS) as f:
         f.readline()                                # "WGS84 UTM 11N"

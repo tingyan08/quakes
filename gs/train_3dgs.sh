@@ -9,13 +9,16 @@ set -euo pipefail
 . "$(dirname "$0")/common.sh"
 OUT=${OUT:-$RUNS/3dgs}
 FACTOR=${FACTOR:-4}
+# hold out every TEST_EVERY-th image (name order). With 8 cameras per frame use 9:
+# 8 would hold out one whole camera
+TEST_EVERY=${TEST_EVERY:-8}
 # absolute paths: the trainer runs from gsplat's examples/ directory
 OUT=$(realpath -m "$OUT"); DATASET=$(realpath -m "$DATASET")
 
 cd "$GSPLAT/examples"
 "$GS_PY" simple_trainer.py default \
     --data_dir "$DATASET" --data_factor "$FACTOR" --result_dir "$OUT" \
-    --test_every 8 --max_steps 30000 \
+    --test_every "$TEST_EVERY" --max_steps 30000 \
     --eval_steps 7000 30000 --save_steps 7000 30000 \
     --save_ply --ply_steps 30000 \
     --disable_viewer \

@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--ckpt", default=None, help="default: the latest checkpoint in result_dir/ckpts")
     ap.add_argument("--data_dir", default=f"{ROOT}/runs/whitney/gs/dataset")
     ap.add_argument("--eval_factor", type=int, default=4)
+    ap.add_argument("--test_every", type=int, default=8, help="must match training")
     ap.add_argument("--model", choices=("3dgs", "2dgs"), default="3dgs")
     args = ap.parse_args()
     dev = "cuda"
@@ -53,7 +54,7 @@ def main():
 
     # Same normalization and split as training (the normalization depends only on
     # the cameras, not on the image resolution)
-    parser = Parser(args.data_dir, factor=args.eval_factor, normalize=True, test_every=8)
+    parser = Parser(args.data_dir, factor=args.eval_factor, normalize=True, test_every=args.test_every)
     valset = Dataset(parser, split="val")
 
     psnr = PeakSignalNoiseRatio(data_range=1.0).to(dev)

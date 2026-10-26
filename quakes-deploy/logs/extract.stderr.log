@@ -1,0 +1,9 @@
+tar: ./dev/console: Cannot mknod: Operation not permitted
+tar: ./dev/full: Cannot mknod: Operation not permitted
+tar: ./dev/null: Cannot mknod: Operation not permitted
+tar: ./dev/ptmx: Cannot mknod: Operation not permitted
+tar: ./dev/random: Cannot mknod: Operation not permitted
+tar: ./dev/tty: Cannot mknod: Operation not permitted
+tar: ./dev/urandom: Cannot mknod: Operation not permitted
+tar: ./dev/zero: Cannot mknod: Operation not permitted
+tar: Exiting with failure status due to previous errors

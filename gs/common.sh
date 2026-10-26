@@ -10,8 +10,8 @@ GS_ENV=${GS_ENV:-$ROOT/envs/gs}
 GS_PY=${GS_PY:-$GS_ENV/bin/python}
 # gsplat source, pinned at the installed version; its examples/ hold the trainers
 GSPLAT=${GSPLAT:-$ROOT/gs/third_party/gsplat}
-# The photogrammetry image (OpenSfM, PDAL)
-SIF=${SIF:-$ROOT/envs/quakes-odm.sif}
+# The photogrammetry image: Dima Kogan's JPL QUAKES image (OpenSfM, ODM, PDAL), see quakes-deploy/
+SIF=${SIF:-$ROOT/envs/quakes-jpl-trixie.sif}
 
 # Inputs and outputs
 PHOTOGRAMMETRY=${PHOTOGRAMMETRY:-$ROOT/runs/whitney/photogrammetry}   # ODM project

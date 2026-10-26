@@ -7,12 +7,13 @@ Gaussian splatting (3DGS, 2DGS) for DSM/DTM from QUAKES airborne imagery.
 ```
 quakes/
   photogrammetry/   the upstream QUAKES tools (raw conversion, OpenSfM/ODM handoff, …)
-    cluster/        Apptainer image + run scripts for the cluster          → cluster/README.md
+    cluster/        run scripts for the cluster                             → cluster/README.md
   gs/               Gaussian splatting: dataset, training, DSM/DTM, evaluation → gs/README.md
     third_party/gsplat   (git submodule, v1.5.3)
   data/             input data (git-ignored), e.g. data/whitney-batch1
   runs/             all outputs (git-ignored), e.g. runs/whitney/{raw-converted,photogrammetry,gs}
-  envs/             container images and Python environments (git-ignored)
+  quakes-deploy/    Dima Kogan's JPL image deployed with Apptainer: scripts, report → quakes-deploy/README.md
+  envs/             container images and Python environments (git-ignored), e.g. envs/quakes-jpl-trixie.sif
 ```
 
 ## Whitney example, end to end
@@ -20,9 +21,8 @@ quakes/
 Inside an interactive GPU job, from the project root:
 
 ```sh
-# photogrammetry: .raw frames -> images + poses -> OpenSfM + ODM (orthophoto, DSM)
-apptainer exec -B /scratch,/depot envs/quakes-odm.sif make -C photogrammetry
-FIRST=25480 LAST=25535 apptainer exec -B /scratch,/depot envs/quakes-odm.sif photogrammetry/cluster/raw-to-images-whitney.sh
+# photogrammetry: images + poses -> OpenSfM + ODM (orthophoto, DSM), in the JPL image
+# (the .raw -> images step is not runnable in that image yet: photogrammetry/cluster/README.md)
 bash photogrammetry/cluster/run-whitney.sh
 
 # Gaussian splatting on the same poses, then DSM/DTM against ODM
@@ -39,5 +39,6 @@ Raw frames and INS are read from the QUAKES archive on `/depot/andread/data`.
   `run-opensfm-opendronemap-handoff.sh` (ODM concurrency from `$ODM_MAX_CONCURRENCY`).
 - `photogrammetry/generic_functions.py` recovered from git history (commit 3d5cab7)
   to replace the private `sfmviz` module that `raw-convert.py` imports.
-- `photogrammetry/cluster/`: Apptainer replacement for the wiki's schroot image.
+- `photogrammetry/cluster/`: run scripts for the cluster.
+- `quakes-deploy/`: the wiki's prebuilt schroot tarball, deployed unchanged as an Apptainer image.
 - `gs/`: new.

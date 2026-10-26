@@ -14,10 +14,11 @@
 # Needs PDAL 2.9 from the photogrammetry image; re-runs itself inside it.
 set -euo pipefail
 . "$(dirname "$0")/common.sh"
-PDAL=/code/SuperBuild/install/bin/pdal
+PDAL=/opt/opendronemap/SuperBuild/install/bin/pdal        # ODM's PDAL in the JPL image
 if [[ ! -x $PDAL ]]; then
     exec apptainer exec -B /scratch,/depot "$SIF" bash "$0" "$@"
 fi
+export LD_LIBRARY_PATH=/opt/opendronemap/SuperBuild/build/pdal/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 
 PROJ=$PHOTOGRAMMETRY
 OUT=${OUT:-$RUNS/dsm-dtm-compare}
@@ -25,7 +26,7 @@ FACTOR=4
 mkdir -p $OUT
 
 # Grid from the ODM DSM (writers.gdal wants the LOWER-left origin)
-read RES OX OY W H < <(/code/venv/bin/python3 - <<EOF
+read RES OX OY W H < <(/usr/bin/python3 - <<EOF   # the image's python (GDAL), not envs/gs on PATH
 from osgeo import gdal
 d = gdal.Open("$PROJ/odm_dem/dsm.tif")
 gt = d.GetGeoTransform()

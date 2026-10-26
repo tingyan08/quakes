@@ -8,11 +8,12 @@
 
 # Runs the Mt. Whitney example from
 #   https://github.com/dkogan/quakes/wiki/2026-05-27--packaging-opensfm-opendronemap
-# inside the apptainer image built from photogrammetry/cluster/quakes.def. Works inside an
+# inside Dima Kogan's JPL QUAKES image (envs/quakes-jpl-trixie.sif, see quakes-deploy/), through
+# quakes-deploy/scripts/quakes-jpl.sh (GPU driver binds). Works inside an
 # interactive job (bash photogrammetry/cluster/run-whitney.sh) or via sbatch (pass -A/-p yourself)
 #
 # Environment overrides:
-#   SIF       the apptainer image. Default: envs/quakes-odm.sif
+#   SIF       the apptainer image. Default: envs/quakes-jpl-trixie.sif
 #   DATA      directory with filename_latlonalt_opkdeg--cam*.vnl and images/.
 #             Default: runs/whitney/raw-converted (from raw-to-images-whitney.sh);
 #             data/whitney-batch1 (the JPL-converted images) also works
@@ -26,7 +27,7 @@ set -e
 
 PHOTO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)   # photogrammetry/
 ROOT=$(dirname "$PHOTO")                                 # project root
-SIF=${SIF:-$ROOT/envs/quakes-odm.sif}
+SIF=${SIF:-$ROOT/envs/quakes-jpl-trixie.sif}
 DATA=${DATA:-$ROOT/runs/whitney/raw-converted}
 PROJECT=${PROJECT:-$ROOT/runs/whitney/photogrammetry}
 FIRST=${FIRST:-25480}
@@ -95,7 +96,7 @@ use_altitude_tag: true
 EOF
 
 
-apptainer exec --nv -B /scratch,/depot --env ODM_MAX_CONCURRENCY=$NPROC "$SIF" \
+APPTAINERENV_ODM_MAX_CONCURRENCY=$NPROC QUAKES_SIF="$SIF" "$ROOT/quakes-deploy/scripts/quakes-jpl.sh" \
   "$PHOTO/run-opensfm-opendronemap-handoff.sh" \
     --metadata   "$DATA/*.vnl" \
     --images     "$PROJECT/small-images" \

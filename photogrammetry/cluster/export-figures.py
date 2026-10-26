@@ -1,4 +1,4 @@
-#!/code/venv/bin/python3
+#!/usr/bin/python3
 
 r'''Export overview figures from a finished run-opensfm-opendronemap-handoff.sh project
 
@@ -9,9 +9,9 @@ Writes PNGs into PROJECT/exports:
 - raw-vs-converted.png:   one .raw Bayer frame next to its converted .jpg, if
                           --raw and --jpg are given
 
-Run with ODM's python (it has GDAL and matplotlib):
+Run in the JPL QUAKES image (its python3 has GDAL and matplotlib):
 
-  apptainer exec -B /scratch,/depot envs/quakes-odm.sif photogrammetry/cluster/export-figures.py runs/whitney/photogrammetry
+  quakes-deploy/scripts/quakes-jpl.sh photogrammetry/cluster/export-figures.py runs/whitney/photogrammetry
 
 '''
 

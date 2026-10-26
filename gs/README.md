@@ -28,7 +28,7 @@ Training resolution: `FACTOR` (default 4, i.e. 1280 × 960). For example
 `--data_factor 2 --dump_stride 8`, which keeps the point density of the 1/4-resolution runs.
 
 Steps 2–4, `eval_renders.py` and the capacity test need a GPU. Steps 1 and 5 use the photogrammetry
-image (`envs/quakes-odm.sif`) for OpenSfM and PDAL.
+image (`envs/quakes-jpl-trixie.sif`, see `quakes-deploy/`) for OpenSfM and PDAL.
 
 ## Environment (`envs/gs`)
 

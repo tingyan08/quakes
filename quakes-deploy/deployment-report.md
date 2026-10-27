@@ -96,10 +96,32 @@ scratch folder; nothing in `runs/` was overwritten):
   `cameras.bin` and `images.bin` byte-identical; `points3D.bin` has the same 46,739 points with
   identical positions, colours, errors and track membership; only the order of the
   observations inside 44,270 tracks differs (no effect on gsplat, which reads positions and colours).
-- **Not runnable in this image:** `raw-to-images-whitney.sh`. It needs the `_raw_convert` C extension,
-  and the image has no compiler, `make`, `pkg-config` or mrbuild. Earlier conversions remain in
-  `runs/*/raw-converted`; `data/whitney-batch1` holds JPL's own.
+- **Not runnable in this image:** `raw-to-images-whitney.sh`. It needs `pyexiv2` and the
+  `_raw_convert` C extension; the image has neither pyexiv2 (nor libexiv2) nor a compiler,
+  `make`, `pkg-config` or mrbuild. See the raw-conversion image below.
 - No OpenSfM reconstruction or ODM run has been done in this image yet (see `WORKFLOW_VERIFIED`).
+
+## Raw-conversion image (`envs/quakes-jpl-raw.sif`, 2026-10-26)
+
+A separate image for `raw-convert.py` only; **not Dima's**, and not used for OpenSfM or ODM.
+`defs/quakes-jpl-raw.def`: `Bootstrap: localimage` from `envs/quakes-jpl-trixie.sif`, then
+`apt-get install python3-py3exiv2 build-essential pkg-config mrbuild libopencv-dev python3-dev libpython3-dev`
+(`apptainer build --fakeroot`, log `logs/raw-image-build.log`). SHA-256 in `manifests/raw-image.sha256`.
+
+- Against the current Debian archive this failed, by design: every base package is held during
+  the install, and the new packages needed newer security updates of `python3.13`
+  (`+deb13u5` vs the image's `+deb13u2`) and `perl-base`. The def therefore uses
+  `snapshot.debian.org` at 20260527T000000Z (the tarball's date); an `apt-get -s` simulation
+  against the unchanged base, then the build, gave 0 upgraded, 99 newly installed, 0 removed.
+  The image's own `sources.list` is restored and the holds are lifted afterwards.
+- `scripts/verify_raw_image.sh` (`logs/raw-image-verify.log`): all base packages present at the
+  same versions; `dpkg --verify` of every base package clean; 99 added
+  (`manifests/raw-image-added.txt`); `import pyexiv2` (0.12.0) with numpy, mrcal, vnlog, cv2, pyproj.
+- `_raw_convert` built in it (`make -C photogrammetry`, no errors). Frames
+  25480-25481 of SN330071 via `raw-to-images-whitney.sh`: JPEGs **byte-identical** to
+  `runs/whitney/raw-converted` (made earlier in the image built from public sources); poses equal.
+  Against JPL's 2021 `batch1`: same size, mean |difference| 0.001 DN (a few pixels in the bottom
+  rows, as noted before), and batch1 carries fewer EXIF tags (no GPS EXIF).
 
 ## Not done / next actions
 

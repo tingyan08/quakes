@@ -5,10 +5,10 @@
 # per-camera filename_latlonalt_opkdeg--cam*.vnl pose files. This reproduces
 # 2021-07-23--processed/batch1 (see the original process.sh~ in the dataset)
 #
-# Needs the _raw_convert C extension (make -C photogrammetry) built for the image's
-# python. The JPL QUAKES image has no compiler, so this is not buildable there yet;
-# see photogrammetry/cluster/README.md. Once built, run inside the image:
-#   quakes-deploy/scripts/quakes-jpl.sh photogrammetry/cluster/raw-to-images-whitney.sh
+# Needs pyexiv2 and the _raw_convert C extension, which the JPL QUAKES image lacks;
+# envs/quakes-jpl-raw.sif adds them (see photogrammetry/cluster/README.md). Build
+# _raw_convert once (make -C photogrammetry, in that image), then:
+#   QUAKES_SIF=envs/quakes-jpl-raw.sif quakes-deploy/scripts/quakes-jpl.sh photogrammetry/cluster/raw-to-images-whitney.sh
 #
 # Environment overrides:
 #   CAMS        camera serial numbers to convert. Default: "330071 330075"

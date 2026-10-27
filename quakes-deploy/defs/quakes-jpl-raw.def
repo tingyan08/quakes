@@ -1,0 +1,51 @@
+# The JPL QUAKES image plus what photogrammetry/raw-convert.py needs and the
+# image lacks: pyexiv2 (writes the EXIF/XMP tags) and the tools to build the
+# _raw_convert C extension (make -C photogrammetry). For raw conversion only;
+# OpenSfM and ODM runs use envs/quakes-jpl-trixie.sif itself.
+#
+# Every package of the base image is put on hold first, so apt can only add
+# packages: if one of the new ones needed a newer version of anything already
+# installed, apt would refuse and the build would fail. The holds are lifted
+# again at the end, so dpkg's state differs from the base only by the additions.
+# quakes-deploy/scripts/verify_raw_image.sh checks this against the base.
+#
+# Build, from the project root, on a compute node:
+#   export APPTAINER_TMPDIR=$RCAC_SCRATCH/.apptainer/tmp APPTAINER_CACHEDIR=$RCAC_SCRATCH/.apptainer/cache
+#   apptainer build --fakeroot envs/quakes-jpl-raw.sif quakes-deploy/defs/quakes-jpl-raw.def
+
+Bootstrap: localimage
+From: envs/quakes-jpl-trixie.sif
+
+%arguments
+    SNAPSHOT=20260527T000000Z
+
+%post
+    set -e
+    export DEBIAN_FRONTEND=noninteractive
+
+    apt-mark showhold > /tmp/held-before
+    dpkg-query -W -f '${Package}:${Architecture}\n' | xargs apt-mark hold > /dev/null
+
+    # Debian as of the tarball's date, so the additions match its versions (the
+    # current archive has newer security updates of e.g. python3.13 and perl)
+    cp /etc/apt/sources.list /tmp/sources.list.orig
+    cat > /etc/apt/sources.list <<EOF
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/{{ SNAPSHOT }} trixie main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/{{ SNAPSHOT }} trixie-updates main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/{{ SNAPSHOT }} trixie-security main
+EOF
+
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        python3-py3exiv2 \
+        build-essential pkg-config mrbuild libopencv-dev python3-dev libpython3-dev
+
+    apt-mark showhold | grep -vxF -f /tmp/held-before | xargs -r apt-mark unhold > /dev/null
+    cp /tmp/sources.list.orig /etc/apt/sources.list
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+    mkdir -p /var/lib/apt/lists/partial
+
+%labels
+    Base envs/quakes-jpl-trixie.sif (Dima Kogan's quakes-opensfm-opendronemap-trixie.tar.gz)
+    Purpose raw conversion only (raw-convert.py)

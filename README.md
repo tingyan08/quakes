@@ -22,7 +22,7 @@ Inside an interactive GPU job, from the project root:
 
 ```sh
 # photogrammetry: images + poses -> OpenSfM + ODM (orthophoto, DSM), in the JPL image
-# (the .raw -> images step is not runnable in that image yet: photogrammetry/cluster/README.md)
+# (the .raw -> images step runs in envs/quakes-jpl-raw.sif: photogrammetry/cluster/README.md)
 bash photogrammetry/cluster/run-whitney.sh
 
 # Gaussian splatting on the same poses, then DSM/DTM against ODM

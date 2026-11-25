@@ -1,0 +1,24 @@
+date:      2026-10-26T13:38:26-04:00
+host:      gilbreth-n006.rcac.purdue.edu
+user:      uid=2328810(wu2691) gid=132(student) groups=132(student),13130(cruz113-jahansh),26443(jahansha),26444(jahansha-data),26445(jahansha-apps),27072(cruz113),28073(andread)
+arch:      x86_64  kernel 5.14.0-687.49.1.el9_8.x86_64
+VERSION_ID="9.8"
+PRETTY_NAME="Rocky Linux 9.8 (Blue Onyx)"
+apptainer: /usr/bin/apptainer apptainer version 1.5.3-1.el9
+slurm job: 12021489 partition a100-40gb cpus 8
+NVIDIA A100-SXM4-40GB, 595.91.07, 40960 MiB
+APPTAINER_TMPDIR=  APPTAINER_CACHEDIR=
+user namespaces: max_user_namespaces=4126314
+subuid: none (apptainer --fakeroot uses its limited mode)
+
+Type       Location             Size    Limit    Use   Files   Limit    Use
+===========================================================================
+home       wu2691             22.5GB   25.0GB  90.0%      -       -      - 
+scratch    wu2691              1.0TB  200.0TB   0.5%  573.0K    2.0M  28.7%
+depot      andread            73.2TB  100.0TB  73.2%      -       -      - 
+depot      cruz113            11.2TB   12.0TB  93.7%      -       -      - 
+depot      jahansha            4.8TB   17.0TB  28.3%      -       -      - 
+
+Filesystem                                                                                                                                                        Size  Used Avail Use% Mounted on
+gilbreth-zfs-ib.rcac.purdue.edu:/home                                                                                                                              44T   27T   17T  62% /home
+172.18.37.32@o2ib1:172.18.37.33@o2ib1:172.18.37.34@o2ib1:172.18.37.35@o2ib1:172.18.37.36@o2ib1:172.18.37.37@o2ib1:172.18.37.38@o2ib1:172.18.37.39@o2ib1:/scratch  4.3P  792T  3.3P  20% /scratch/gilbreth

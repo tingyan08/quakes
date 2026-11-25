@@ -227,7 +227,7 @@ def process_metadata(metadata_glob,
         r_ref_cam0 = r_from_opk(images_from_id[camera_ref]['lla_opk'][3:])
         for k in camera_ids:
             r_ref_cam = r_from_opk(images_from_id[k]['lla_opk'][3:])
-            r_cam_cam0 = mrcal.compose_r(-r_ref_cam, r_ref_cam0)
+            r_cam_cam0 = mrcal.compose_r(r_ref_cam, -r_ref_cam0)   # r_from_opk is world->cam
 
             rig_cameras[k] = dict(rotation    = list(r_cam_cam0),
                                   translation = (0,0,0),

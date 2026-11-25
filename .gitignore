@@ -1,6 +1,22 @@
 *.o
 *.so
+*.so.*
+*.d
 *.docstring.h
 *~
 #*
 .#*
+__pycache__/
+
+# Large or generated: data, outputs, container images and environments
+data/
+runs/
+envs/
+
+# Slide decks and their builders (kept locally, not in the repository)
+slides/
+
+# The JPL rootfs tarball (deployed into envs/quakes-jpl-trixie.sif; see quakes-deploy/)
+/quakes-opensfm-opendronemap-trixie.tar.gz
+# Full tar listing of the JPL archive (14.6 MB, regenerate with tar -tvzf)
+/quakes-deploy/manifests/archive-listing.txt

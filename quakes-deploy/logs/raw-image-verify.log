@@ -1,0 +1,12 @@
+== base packages missing or at another version in envs/quakes-jpl-raw.sif
+none
+== packages added
+99
+== dpkg --verify of all base packages (no output = no file changed)
+-- exit 0
+== held packages (expected none)
+== raw-convert.py imports
+pyexiv2 0.12.0
+-- exit 0
+
+RAW IMAGE CHECKS PASSED

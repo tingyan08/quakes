@@ -1,0 +1,13 @@
+#!/usr/bin/python3
+# The image's /usr/bin/opensfm, with OpenSfM's altitude cap raised. opensfm/exif.py sets
+# maximum_altitude = 1e4 (m) and clamps every GPS altitude to it, in exif.json
+# (exif.extract_geo) and in the bundle-adjustment priors (reconstruction_helpers.exif_to_metadata).
+# QUAKES flies at ~13 km, so without this all camera priors sit at 10 km.
+# Both read the module attribute when called, so setting it here is enough; the image is unchanged.
+# Put this directory first on PATH (APPTAINERENV_PREPEND_PATH) to use it in place of /usr/bin/opensfm.
+# OPENSFM_MAX_ALTITUDE sets the cap [m]. Default: 1e5
+import os, sys, runpy
+import opensfm.exif
+opensfm.exif.maximum_altitude = float(os.environ.get('OPENSFM_MAX_ALTITUDE', '1e5'))
+print(f'opensfm: maximum_altitude = {opensfm.exif.maximum_altitude:g} m', file=sys.stderr)
+runpy.run_path('/usr/bin/opensfm', run_name='__main__')

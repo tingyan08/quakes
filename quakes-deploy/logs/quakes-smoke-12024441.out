@@ -1,0 +1,110 @@
+gilbreth-n010.rcac.purdue.edu
+
+== image
+envs/quakes-jpl-trixie.sif
+7e24112d29802cd9b09bc4c522919e6f0bb25112984942530b8acb9d75f72c04  envs/quakes-jpl-trixie.sif
+
+== OS
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+NAME="Debian GNU/Linux"
+VERSION_ID="13"
+VERSION="13 (trixie)"
+VERSION_CODENAME=trixie
+DEBIAN_VERSION_FULL=13.5
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+-- exit 0
+
+== entry points
+opendronemap  /usr/bin/opendronemap
+opensfm       /usr/bin/opensfm
+python3       /usr/bin/python3
+zsh           /usr/bin/zsh
+-- exit 0
+
+== JPL packages
+libxml2-16:amd64	2.15.2+dfsg-0.1
+opendronemap	3.6.0~1binaryblob1
+python3-mrcal:amd64	2.4.1-4+b2
+python3-numpysane	0.42-1
+python3-opensfm:amd64	0.0.2
+python3-vnlog	1.40-1
+zsh	5.9-8+b23
+-- exit 0
+
+== package files intact (dpkg --verify of the JPL packages; no output = no changes)
+-- exit 0
+
+== python imports
+mrcal ?
+opensfm /usr/lib/python3/dist-packages/opensfm/__init__.py
+-- exit 0
+
+== missing shared libraries of the entry points' ELF files
+opendronemap -> /usr/bin/opendronemap (script: #!/bin/bash)
+opensfm -> /usr/bin/opensfm (script: #! /usr/bin/python3)
+-- exit 0
+
+== opensfm --help
+usage: opensfm [-h] command ...
+
+positional arguments:
+  command               Command to run
+    extract_metadata    Extract metadata from images' EXIF tag
+    detect_features     Compute features for all images
+    match_features      Match features between image pairs
+    create_rig          Create rig by creating `rig_cameras.json` and
+                        `rig_assignments.json` files.
+    create_tracks       Link matches pair-wise matches into tracks
+    reconstruct         Compute the reconstruction
+    reconstruct_from_prior
+                        Reconstruct from prior reconstruction
+    bundle              Bundle a reconstruction
+    mesh                Add delaunay meshes to the reconstruction
+    undistort           Save radially undistorted images
+    compute_depthmaps   Compute depthmap
+    compute_statistics  Compute statistics and save them in the stats folder
+    export_ply          Export reconstruction to PLY format
+    export_openmvs      Export reconstruction to openMVS format
+-- exit 0
+
+== opendronemap --help
+usage: run.sh [options] <dataset name>
+
+ODM is a command line toolkit to generate maps, point clouds, 3D models and
+DEMs from drone, balloon or kite images.
+
+positional arguments:
+  <dataset name>        Name of dataset (i.e subfolder name within project
+                        folder). Default: code
+
+options:
+  -h, --help            show this help message and exit
+  --project-path <path>
+                        Path to the project folder. Your project folder should
+                        contain subfolders for each dataset. Each dataset
+                        should have an "images" folder.
+  --end-with, -e <string>
+                        End processing at this stage. Can be one of: dataset,
+                        split, merge, opensfm, openmvs, odm_filterpoints,
+                        odm_meshing, mvs_texturing, odm_georeferencing,
+                        odm_dem, odm_orthophoto, odm_report, odm_postprocess.
+-- exit 0
+
+== OpenMVS links CUDA, and no library is missing
+	libcuda.so.1 => /lib/x86_64-linux-gnu/libcuda.so.1 (0x000015320a36f000)
+-- exit 0
+
+== GPU through quakes-jpl.sh (host driver bound over the image's), with the opendronemap wrapper's LD_LIBRARY_PATH
+NVIDIA A100-SXM4-40GB, 595.91.07
+cuInit 0
+-- exit 0
+
+== GPU with plain --nv (expected to FAIL on Gilbreth: image driver libs 550 vs host driver; informational only)
+Failed to initialize NVML: Driver/library version mismatch
+NVML library version: 550.163
+-- exit 18 (not counted)
+
+SMOKE TESTS PASSED

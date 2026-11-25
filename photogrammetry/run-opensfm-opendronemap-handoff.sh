@@ -127,7 +127,7 @@ for stage ($stages) {
 ##### ODM handoff
 opendronemap \
   --project $project \
-  --max-concurrency 64 \
+  --max-concurrency ${ODM_MAX_CONCURRENCY:-64} \
   --rerun-from odm_meshing \
   --dsm \
   $project(:A)
